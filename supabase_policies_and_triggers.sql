@@ -2,6 +2,21 @@
 -- FUNZIONI
 -- ===========================
 
+-- New is_admin function
+create or replace function public.is_admin(uid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.utenti
+    where utenti.id = uid
+    and utenti.ruolo = 'admin'
+  );
+$$;
+
 CREATE OR REPLACE FUNCTION public.protect_admin_fields()
 RETURNS trigger AS $$
 declare
@@ -127,11 +142,40 @@ USING (auth.email() = 'grafica.valeriobottiglieri@gmail.com')
 WITH CHECK (auth.email() = 'grafica.valeriobottiglieri@gmail.com');
 
 -- PAGAMENTI
-CREATE POLICY pagamenti_admin_full_access ON public.pagamenti
-AS PERMISSIVE FOR ALL
-TO public
-USING (auth.email() = 'grafica.valeriobottiglieri@gmail.com')
-WITH CHECK (auth.email() = 'grafica.valeriobottiglieri@gmail.com');
+-- Drop existing policy
+DROP POLICY IF EXISTS pagamenti_admin_full_access ON public.pagamenti;
+
+-- Enable RLS on pagamenti table
+ALTER TABLE public.pagamenti ENABLE ROW LEVEL SECURITY;
+
+-- Allow SELECT only for admin
+create policy "Allow select for admin"
+on public.pagamenti
+for select
+to authenticated
+using (public.is_admin(auth.uid()));
+
+-- Allow INSERT only for admin
+create policy "Allow insert for admin"
+on public.pagamenti
+for insert
+to authenticated
+with check (public.is_admin(auth.uid()));
+
+-- Allow UPDATE only for admin
+create policy "Allow update for admin"
+on public.pagamenti
+for update
+to authenticated
+using (public.is_admin(auth.uid()))
+with check (public.is_admin(auth.uid()));
+
+-- Allow DELETE only for admin
+create policy "Allow delete for admin"
+on public.pagamenti
+for delete
+to authenticated
+using (public.is_admin(auth.uid()));
 
 -- CORSI
 CREATE POLICY corsi_read_all ON public.corsi

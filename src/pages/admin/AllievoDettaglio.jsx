@@ -4,6 +4,15 @@ import { useAuth } from '../../context/AuthProvider'
 import { supabase } from '../../lib/supabase.js'
 import PaymentGrid from '../../components/PaymentGrid'
 
+// Costante per il costo mensile
+const COSTO_MENSILE = 30
+
+// Array dei mesi per il 2025
+const MESI_2025 = [
+  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+]
+
 function AllievoDettaglio() {
   const { id } = useParams()
   const { isAdmin } = useAuth()
@@ -22,7 +31,7 @@ function AllievoDettaglio() {
     taglia_tshirt: '',
     taglia_pantalone: '',
     numero_scarpe: '',
-    // Campi admin-only per visualizzazione
+    // Campi admin-only per visualizzazione - ora salvano ID corso
     corso_1: '',
     corso_2: '',
     corso_3: '',
@@ -34,6 +43,11 @@ function AllievoDettaglio() {
     prezzo_corso4: '',
     prezzo_corso5: ''
   })
+  
+  // Nuovi state per corsi e pagamenti
+  const [corsi, setCorsi] = useState([])
+  const [pagamenti, setPagamenti] = useState([])
+  const [loadingPagamenti, setLoadingPagamenti] = useState(false)
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -65,18 +79,150 @@ function AllievoDettaglio() {
     if (!profile) return [];
     const courses = [];
     for (let i = 1; i <= 5; i++) {
-      const corso = profile[`corso_${i}`];
+      const corsoId = profile[`corso_${i}`];
       const prezzo = profile[`prezzo_corso${i}`];
-      if (corso) {
-        courses.push({
-          numero: i,
-          corso,
-          prezzo: prezzo ? parseFloat(prezzo).toFixed(2) : '0.00'
-        });
+      if (corsoId) {
+        // Trova il corso nell'array corsi
+        const corso = corsi.find(c => c.id === corsoId);
+        if (corso) {
+          courses.push({
+            numero: i,
+            corso: `${corso.nome}`,
+            prezzo: prezzo ? parseFloat(prezzo).toFixed(2) : '0.00'
+          });
+        }
       }
     }
     return courses;
   };
+
+  // Carica i corsi da Supabase
+  const loadCorsi = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('corsi')
+        .select('*')
+        .order('nome')
+      
+      if (error) {
+        console.error('Errore caricamento corsi:', error)
+        return
+      }
+      
+      setCorsi(data || [])
+    } catch (err) {
+      console.error('Errore caricamento corsi:', err)
+    }
+  }
+
+  // Carica i pagamenti mensili dell'allievo
+  const loadPagamenti = async () => {
+    if (!profile?.id) return
+    
+    try {
+      setLoadingPagamenti(true)
+      const { data, error } = await supabase
+        .from('pagamenti')
+        .select('*')
+        .eq('allievo_id', profile.id)
+        .eq('tipo', 'mensile')
+      
+      if (error) {
+        console.error('Errore caricamento pagamenti:', error)
+        return
+      }
+      
+      setPagamenti(data || [])
+    } catch (err) {
+      console.error('Errore caricamento pagamenti:', err)
+    } finally {
+      setLoadingPagamenti(false)
+    }
+  }
+
+  // Gestisce il click sui bottoni dei mesi
+  const handleMeseClick = async (mese) => {
+    if (!profile?.id) return
+    
+    try {
+      // Trova il pagamento esistente per questo mese
+      const pagamentoEsistente = pagamenti.find(p => p.mese === mese)
+      
+      let nuovoStato
+      if (!pagamentoEsistente || pagamentoEsistente.stato === 'non_dovuto') {
+        nuovoStato = 'si'
+      } else if (pagamentoEsistente.stato === 'si') {
+        nuovoStato = 'no'
+      } else {
+        nuovoStato = 'non_dovuto'
+      }
+      
+      if (pagamentoEsistente) {
+        // Aggiorna il pagamento esistente
+        const { error } = await supabase
+          .from('pagamenti')
+          .update({ stato: nuovoStato, updated_at: new Date().toISOString() })
+          .eq('id', pagamentoEsistente.id)
+        
+        if (error) {
+          console.error('Errore aggiornamento pagamento:', error)
+          return
+        }
+        
+        // Aggiorna lo state locale
+        setPagamenti(prev => prev.map(p => 
+          p.id === pagamentoEsistente.id 
+            ? { ...p, stato: nuovoStato, updated_at: new Date().toISOString() }
+            : p
+        ))
+      } else {
+        // Crea un nuovo pagamento
+        const { data, error } = await supabase
+          .from('pagamenti')
+          .insert({
+            allievo_id: profile.id,
+            tipo: 'mensile',
+            mese: mese,
+            stato: nuovoStato,
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single()
+        
+        if (error) {
+          console.error('Errore creazione pagamento:', error)
+          return
+        }
+        
+        // Aggiunge il nuovo pagamento allo state
+        setPagamenti(prev => [...prev, data])
+      }
+    } catch (err) {
+      console.error('Errore gestione pagamento:', err)
+    }
+  }
+
+  // Calcola il totale dei mesi pagati
+  const calcolaTotale = () => {
+    const mesiPagati = pagamenti.filter(p => p.stato === 'si').length
+    return mesiPagati * COSTO_MENSILE
+  }
+
+  // Ottiene lo stato di un mese specifico
+  const getStatoMese = (mese) => {
+    const pagamento = pagamenti.find(p => p.mese === mese)
+    return pagamento?.stato || 'non_dovuto'
+  }
+
+  // Ottiene il colore del bottone in base allo stato
+  const getColoreMese = (stato) => {
+    switch (stato) {
+      case 'si': return 'bg-green-500 hover:bg-green-600 text-white'
+      case 'no': return 'bg-red-500 hover:bg-red-600 text-white'
+      case 'non_dovuto': return 'bg-gray-500 hover:bg-gray-600 text-white'
+      default: return 'bg-gray-500 hover:bg-gray-600 text-white'
+    }
+  }
 
   // Carica i dati del profilo utente tramite id
   useEffect(() => {
@@ -162,115 +308,68 @@ function AllievoDettaglio() {
     return () => { isMounted = false }
   }, [id])
 
+  // Carica corsi all'avvio
+  useEffect(() => {
+    loadCorsi()
+  }, [])
+
+  // Carica pagamenti quando il profilo è disponibile
+  useEffect(() => {
+    if (profile?.id) {
+      loadPagamenti()
+    }
+  }, [profile?.id])
+
+  // Gestione input con rimozione errori
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    
+    // Rimuovi l'errore per questo campo se esiste
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors[name]
+        return newErrors
+      })
+    }
+  }
+
   // Funzione handleSubmit per il salvataggio profilo
   const handleSubmit = async (e) => {
     e.preventDefault()
     
     try {
       setSaving(true)
-      setErrors({})
       
-      // Validazione campi obbligatori
-      const newErrors = {}
-      if (!formData.nome || (typeof formData.nome === 'string' && !formData.nome.trim())) {
-        newErrors.nome = 'Nome obbligatorio'
-      }
-      if (!formData.cognome || (typeof formData.cognome === 'string' && !formData.cognome.trim())) {
-        newErrors.cognome = 'Cognome obbligatorio'
-      }
-      
-      if (Object.keys(newErrors).length > 0) {
-        setErrors(newErrors)
-        setSaving(false)
-        return
+      // Prepara i dati da aggiornare
+      const updateData = {
+        nome: formData.nome,
+        cognome: formData.cognome,
+        data_nascita: toISODate(formData.data_nascita),
+        cellulare: formData.cellulare,
+        nome_genitore1: formData.nome_genitore1,
+        nome_genitore2: formData.nome_genitore2,
+        email: formData.email || null,
+        corso_1: formData.corso_1 || null,
+        corso_2: formData.corso_2 || null,
+        corso_3: formData.corso_3 || null
       }
       
-      // Helper function per pulire i valori in modo sicuro
-      const cleanValue = (value, fieldType = 'string') => {
-        if (value === null || value === undefined) return null
-        
-        if (fieldType === 'number') {
-          // Per campi numerici
-          if (typeof value === 'number') return value
-          if (typeof value === 'string') {
-            const trimmed = value.trim()
-            return trimmed && !isNaN(trimmed) ? parseFloat(trimmed) : null
-          }
-          return null
-        }
-        
-        if (fieldType === 'integer') {
-          // Per campi interi
-          if (typeof value === 'number') return Math.floor(value)
-          if (typeof value === 'string') {
-            const trimmed = value.trim()
-            return trimmed && !isNaN(trimmed) ? parseInt(trimmed) : null
-          }
-          return null
-        }
-        
-        // Per campi stringa (default)
-        if (typeof value === 'string') {
-          const trimmed = value.trim()
-          return trimmed || null
-        }
-        
-        return value
-      }
-      
-      // Prepara updates solo con campi modificabili dall'utente
-      const updates = {}
-      
-      // Campi modificabili dall'utente (stringhe)
-      const stringFields = [
-        'nome', 'cognome', 'cellulare',
-        'nome_genitore1', 'cellulare_genitore1',
-        'nome_genitore2', 'cellulare_genitore2',
-        'taglia_tshirt', 'taglia_pantalone'
-      ]
-      
-      stringFields.forEach(field => {
-        updates[field] = cleanValue(formData[field], 'string')
-      })
-      
-      // Campo numerico speciale
-      updates.numero_scarpe = cleanValue(formData.numero_scarpe, 'integer')
-      
-      // Data nascita con conversione
-      updates.data_nascita = toISODate(formData.data_nascita)
-      
-      // Campi admin-only (solo se admin)
-      if (isAdmin) {
-        for (let i = 1; i <= 5; i++) {
-          const corsoField = `corso_${i}`
-          const prezzoField = `prezzo_corso${i}`
-          
-          updates[corsoField] = cleanValue(formData[corsoField], 'string')
-          updates[prezzoField] = cleanValue(formData[prezzoField], 'number')
-        }
-      }
-
-      console.log('[DEBUG] Aggiornamento profilo allievo id:', id, updates)
-      
-      // Esegui update
+      // Aggiorna la tabella utenti su Supabase
       const { error } = await supabase
         .from('utenti')
-        .update(updates)
+        .update(updateData)
         .eq('id', id)
       
       if (error) {
-        console.error('[DEBUG] Errore update profilo:', error?.message, error)
-        
-        // Gestione errori specifici RLS
-        if (error.code === 'PGRST116' || error.message?.includes('RLS')) {
-          setMessage({ type: 'error', text: 'Permesso negato: alcuni campi non sono modificabili' })
-        } else {
-          setMessage({ type: 'error', text: `Errore nell'aggiornamento: ${error.message}` })
-        }
+        console.error('Errore aggiornamento:', error)
+        alert('Errore durante il salvataggio.')
         return
       }
       
-      setMessage({ type: 'success', text: 'Profilo allievo aggiornato con successo!' })
+      // Successo
+      alert('Dati salvati con successo!')
       
       // Ricarica i dati aggiornati
       const { data: updatedProfile } = await supabase
@@ -283,51 +382,31 @@ function AllievoDettaglio() {
         setProfile(updatedProfile)
       }
       
-      console.log('[DEBUG] Profilo aggiornato con successo')
-      
-      // Pulisci il messaggio dopo 3 secondi
-      setTimeout(() => {
-        setMessage({ type: '', text: '' })
-      }, 3000)
-      
-    } catch (e) {
-      console.error('[DEBUG] Update profilo fallito:', e?.message, e)
-      setMessage({ type: 'error', text: 'Errore nell\'aggiornamento del profilo' })
+    } catch (err) {
+      console.error('Errore durante il salvataggio:', err)
+      alert('Errore durante il salvataggio.')
     } finally {
       setSaving(false)
     }
   }
 
-  // Gestione cambio input
-  const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
-    
-    // Rimuovi errore se l'utente inizia a digitare
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }))
-    }
-  }
+  const activeCourses = getActiveCourses()
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 p-4 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center">
         <div className="text-white text-xl">Caricamento...</div>
       </div>
     )
   }
 
-  // Banner errore autorizzazione
-  if (authError || !profile) {
+  if (authError) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 p-4 flex items-center justify-center">
-        <div className="bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg p-6 max-w-md text-center">
-          <h2 className="text-xl font-semibold mb-2">Allievo non trovato</h2>
-          <p className="mb-4">L'allievo richiesto non esiste o non hai i permessi per visualizzarlo</p>
-          <Link 
-            to="/admin/allievi" 
-            className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-500/20 text-indigo-100 border border-indigo-500/30 hover:bg-indigo-500/30 transition-colors"
-          >
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-white mb-4">Accesso negato</h1>
+          <p className="text-white/80 mb-6">Non hai i permessi per visualizzare questo allievo</p>
+          <Link to="/admin/allievi" className="text-indigo-400 hover:text-indigo-300">
             ← Torna alla lista allievi
           </Link>
         </div>
@@ -335,38 +414,84 @@ function AllievoDettaglio() {
     )
   }
 
-  const activeCourses = getActiveCourses()
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 p-4">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">
-            Dettaglio Allievo: {profile?.nome && profile?.cognome ? `${profile.nome} ${profile.cognome}` : 'Sconosciuto'}
-          </h1>
-          <p className="text-white/80 mb-4">
-            {profile?.ruolo ? `Ruolo: ${profile.ruolo.charAt(0).toUpperCase() + profile.ruolo.slice(1)}` : 'Gestisci il profilo dell\'allievo'}
-          </p>
-          <Link 
-            to="/admin/allievi" 
-            className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-500/20 text-indigo-100 border border-indigo-500/30 hover:bg-indigo-500/30 transition-colors"
-          >
-            ← Torna alla lista allievi
-          </Link>
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              {profile?.nome} {profile?.cognome}
+            </h1>
+            <Link to="/admin/allievi" className="text-indigo-400 hover:text-indigo-300">
+              ← Torna alla lista allievi
+            </Link>
+          </div>
         </div>
 
-        {/* Sezione Pagamenti */}
-        <PaymentGrid authId={profile?.auth_id} adminMode={true} />
+        {/* PaymentGrid */}
+        {profile?.auth_id && (
+          <PaymentGrid authId={profile.auth_id} isAdminView={true} />
+        )}
 
-        {/* Card Profilo Allievo */}
+        {/* Sezione Pagamenti 2025 */}
         <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-          <h2 className="text-2xl font-semibold text-white mb-6">Profilo Allievo</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-semibold text-white">Pagamenti 2025</h2>
+            <div className="text-xl font-bold text-green-400">
+              Totale: €{calcolaTotale()}
+            </div>
+          </div>
           
+          {loadingPagamenti ? (
+            <div className="text-white text-center">Caricamento pagamenti...</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {MESI_2025.map((mese) => {
+                const stato = getStatoMese(mese)
+                return (
+                  <button
+                    key={mese}
+                    onClick={() => handleMeseClick(mese)}
+                    className={`px-4 py-3 rounded-xl font-medium transition-colors ${
+                      getColoreMese(stato)
+                    }`}
+                  >
+                    {mese}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          
+          <div className="mt-4 text-sm text-white/70">
+            <div className="flex flex-wrap gap-4">
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-green-500 rounded"></div>
+                Pagato (€{COSTO_MENSILE})
+              </span>
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-red-500 rounded"></div>
+                Non pagato
+              </span>
+              <span className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-gray-500 rounded"></div>
+                Non dovuto
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Form profilo */}
+        <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
+          <h2 className="text-2xl font-semibold text-white mb-6">Profilo allievo</h2>
+          
+          {/* Messaggi */}
           {message.text && (
-            <div className={`mb-4 p-3 rounded-lg ${
+            <div className={`mb-6 p-4 rounded-xl ${
               message.type === 'success' 
-                ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
-                : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                ? 'bg-green-500/20 border border-green-500/30 text-green-300'
+                : 'bg-red-500/20 border border-red-500/30 text-red-300'
             }`}>
               {message.text}
             </div>
@@ -389,9 +514,11 @@ function AllievoDettaglio() {
                     className={`w-full px-4 py-3 rounded-xl bg-white/10 border text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       errors.nome ? 'border-red-500' : 'border-white/20'
                     }`}
-                    placeholder="Inserisci il nome"
+                    placeholder="Nome"
                   />
-                  {errors.nome && <p className="text-red-400 text-sm mt-1">{errors.nome}</p>}
+                  {errors.nome && (
+                    <p className="mt-1 text-sm text-red-400">{errors.nome}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -406,14 +533,16 @@ function AllievoDettaglio() {
                     className={`w-full px-4 py-3 rounded-xl bg-white/10 border text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                       errors.cognome ? 'border-red-500' : 'border-white/20'
                     }`}
-                    placeholder="Inserisci il cognome"
+                    placeholder="Cognome"
                   />
-                  {errors.cognome && <p className="text-red-400 text-sm mt-1">{errors.cognome}</p>}
+                  {errors.cognome && (
+                    <p className="mt-1 text-sm text-red-400">{errors.cognome}</p>
+                  )}
                 </div>
                 
                 <div>
                   <label className="block text-white/80 text-sm font-medium mb-2">
-                    Email (sola lettura)
+                    Email
                   </label>
                   <input
                     type="email"
@@ -425,7 +554,7 @@ function AllievoDettaglio() {
                 
                 <div>
                   <label className="block text-white/80 text-sm font-medium mb-2">
-                    Data iscrizione (sola lettura)
+                    Data iscrizione
                   </label>
                   <input
                     type="text"
@@ -437,15 +566,14 @@ function AllievoDettaglio() {
                 
                 <div>
                   <label className="block text-white/80 text-sm font-medium mb-2">
-                    Data di nascita (DD/MM/YYYY)
+                    Data di nascita
                   </label>
                   <input
                     type="text"
                     name="data_nascita"
                     value={formData.data_nascita}
                     onChange={handleInputChange}
-                    placeholder="18/04/1994"
-                    pattern="\d{2}/\d{2}/\d{4}"
+                    placeholder="DD/MM/YYYY"
                     className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
@@ -460,7 +588,7 @@ function AllievoDettaglio() {
                     value={formData.cellulare}
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Inserisci il cellulare"
+                    placeholder="Numero di cellulare"
                   />
                 </div>
               </div>
@@ -500,7 +628,7 @@ function AllievoDettaglio() {
                 
                 <div>
                   <label className="block text-white/80 text-sm font-medium mb-2">
-                    Nome genitore 2
+                    Nome genitore 2 (facoltativo)
                   </label>
                   <input
                     type="text"
@@ -514,7 +642,7 @@ function AllievoDettaglio() {
                 
                 <div>
                   <label className="block text-white/80 text-sm font-medium mb-2">
-                    Cellulare genitore 2
+                    Cellulare genitore 2 (facoltativo)
                   </label>
                   <input
                     type="tel"
@@ -601,14 +729,19 @@ function AllievoDettaglio() {
                         <label className="block text-white/80 text-sm font-medium mb-2">
                           Corso {i}
                         </label>
-                        <input
-                          type="text"
+                        <select
                           name={`corso_${i}`}
                           value={formData[`corso_${i}`]}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          placeholder={`Nome corso ${i}`}
-                        />
+                          className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="">Seleziona corso</option>
+                          {corsi.map(corso => (
+                            <option key={corso.id} value={corso.id}>
+                              {corso.nome}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-white/80 text-sm font-medium mb-2">
