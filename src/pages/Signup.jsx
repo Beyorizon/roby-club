@@ -1,119 +1,216 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import supabase from '../lib/supabase.js'
-import CardGlass from '../components/CardGlass.jsx'
+import { useAuth } from '../context/AuthProvider'
+import { supabase } from '../lib/supabase.js'
 
-export default function Signup() {
+function Signup() {
+  const { refreshProfile } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({
+  const [formData, setFormData] = useState({
     nome: '',
     cognome: '',
     email: '',
     password: ''
   })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [info, setInfo] = useState(null)
+  const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
 
-  const onChange = (e) => {
-    const { name, value } = e.target
-    setForm((f) => ({ ...f, [name]: value }))
-  }
-
-  const onSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
-    setError(null)
-    setInfo(null)
+    setError('')
+    setInfo('')
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: {
-        data: {
-          nome: form.nome,
-          cognome: form.cognome
+    try {
+      console.log('🔄 Tentativo registrazione:', {
+        email: formData.email,
+        nome: formData.nome,
+        cognome: formData.cognome,
+        timestamp: new Date().toISOString()
+      })
+
+      // Registrazione con metadati
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            nome: formData.nome,
+            cognome: formData.cognome
+          }
+        }
+      })
+
+      if (signUpError) {
+        console.error('❌ Errore signup Supabase:', {
+          message: signUpError.message,
+          status: signUpError.status,
+          details: signUpError
+        })
+        setError(signUpError.message)
+        return
+      }
+
+      console.log('✅ Signup completato:', {
+        userId: data.user?.id,
+        email: data.user?.email,
+        emailConfirmed: data.user?.email_confirmed_at,
+        session: !!data.session
+      })
+
+      if (data.user) {
+        if (data.user.email_confirmed_at) {
+          // Email già confermata - login automatico
+          console.log('🔄 Caricamento profilo per redirect...')
+          const profile = await refreshProfile()
+          
+          console.log('👤 Profilo caricato:', {
+            profile,
+            ruolo: profile?.ruolo
+          })
+          
+          if (profile?.ruolo?.toLowerCase() === 'admin') {
+            console.log('🔀 Redirect admin -> /admin')
+            navigate('/admin', { replace: true })
+          } else {
+            if (profile === null) {
+              console.log('⏳ Profilo in creazione, redirect ritardato -> /dashboard')
+              setInfo('Profilo in creazione, reindirizzamento alla dashboard...')
+              setTimeout(() => {
+                navigate('/dashboard', { replace: true })
+              }, 2000)
+            } else {
+              console.log('🔀 Redirect user -> /dashboard')
+              navigate('/dashboard', { replace: true })
+            }
+          }
+        } else {
+          // Email da confermare
+          console.log('📧 Email da confermare, redirect -> /login')
+          setInfo('Registrazione completata! Controlla la tua email per confermare l\'account.')
+          setTimeout(() => {
+            navigate('/login', { replace: true })
+          }, 3000)
         }
       }
-    })
-    
-    if (signUpError) {
-      setError(`Errore durante la registrazione: ${signUpError.message}`)
+    } catch (err) {
+      console.error('💥 Errore critico signup:', {
+        error: err,
+        message: err.message,
+        stack: err.stack
+      })
+      setError('Errore durante la registrazione')
+    } finally {
       setLoading(false)
-      return
     }
+  }
 
-    // Nessun insert manuale in `utenti`: lo fa il trigger in Supabase
-    if (data?.user) {
-      setInfo('Registrazione completata con successo. Controlla la tua email per la conferma.')
-    }
-
-    setLoading(false)
-    setTimeout(() => {
-      navigate('/login')
-    }, 800)
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    if (error) setError('')
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <CardGlass className="w-full max-w-md p-6">
-        <h2 className="text-2xl font-bold mb-6">Crea un account</h2>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
+      <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 w-full max-w-md border border-white/20">
+        <h1 className="text-3xl font-bold text-white text-center mb-8">Registrati</h1>
+        
+        {error && (
+          <div className="bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg p-3 mb-6">
+            {error}
+          </div>
+        )}
+        
+        {info && (
+          <div className="bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg p-3 mb-6">
+            {info}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-white/80 text-sm font-medium mb-2">
+                Nome
+              </label>
+              <input
+                type="text"
+                name="nome"
+                value={formData.nome}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Nome"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-white/80 text-sm font-medium mb-2">
+                Cognome
+              </label>
+              <input
+                type="text"
+                name="cognome"
+                value={formData.cognome}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Cognome"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-white/80 text-sm font-medium mb-2">
+              Email
+            </label>
             <input
-              type="text"
-              name="nome"
-              placeholder="Nome"
-              value={form.nome}
-              onChange={onChange}
-              className="w-full px-4 py-3 bg-transparent border border-white/20 rounded-xl placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
               required
-            />
-            <input
-              type="text"
-              name="cognome"
-              placeholder="Cognome"
-              value={form.cognome}
-              onChange={onChange}
-              className="w-full px-4 py-3 bg-transparent border border-white/20 rounded-xl placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              required
+              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Inserisci la tua email"
             />
           </div>
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={onChange}
-            className="w-full px-4 py-3 bg-transparent border border-white/20 rounded-xl placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            required
-          />
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={form.password}
-            onChange={onChange}
-            className="w-full px-4 py-3 bg-transparent border border-white/20 rounded-xl placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            required
-          />
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          {info && <p className="text-emerald-400 text-sm">{info}</p>}
+          
+          <div>
+            <label className="block text-white/80 text-sm font-medium mb-2">
+              Password
+            </label>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleInputChange}
+              required
+              minLength={6}
+              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Inserisci la tua password"
+            />
+          </div>
+          
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-4 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 transition-colors font-semibold disabled:opacity-60"
+            className="w-full px-6 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 transition-colors font-semibold text-white disabled:opacity-60"
           >
-            {loading ? 'Registrazione...' : 'Registrati'}
+            {loading ? 'Registrazione in corso...' : 'Registrati'}
           </button>
         </form>
-        <p className="mt-4 text-sm text-white/70">
+        
+        <p className="text-white/70 text-center mt-6">
           Hai già un account?{' '}
-          <Link className="text-indigo-400 hover:underline" to="/login">
+          <Link to="/login" className="text-indigo-400 hover:text-indigo-300 font-medium">
             Accedi
           </Link>
         </p>
-      </CardGlass>
-    </main>
+      </div>
+    </div>
   )
 }
+
+export default Signup

@@ -29,11 +29,11 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             
-            {/* Dashboard per utenti autenticati */}
+            {/* Dashboard per utenti autenticati non-admin */}
             <Route 
               path="/dashboard" 
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole="user">
                   <Dashboard />
                 </ProtectedRoute>
               } 
@@ -43,7 +43,7 @@ function App() {
             <Route 
               path="/admin/*" 
               element={
-                <ProtectedRoute roles={['admin']}>
+                <ProtectedRoute requiredRole="admin">
                   <AdminLayout />
                 </ProtectedRoute>
               }

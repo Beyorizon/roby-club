@@ -1,86 +1,70 @@
-import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthProvider'
 import { supabase } from '../lib/supabase.js'
-import CardGlass from '../components/CardGlass.jsx'
-import { useAuth } from '../context/AuthProvider.jsx'
 
-export default function Login() {
+function Login() {
+  const { user, profile, isAdmin } = useAuth()
   const navigate = useNavigate()
-  const { profile } = useAuth()
-  const [form, setForm] = useState({ email: '', password: '' })
+  const location = useLocation()
+  const [formData, setFormData] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState('')
 
-  const onChange = (e) => {
-    const { name, value } = e.target
-    setForm((f) => ({ ...f, [name]: value }))
+  // Redirect automatico se già loggato
+  if (user && profile) {
+    const redirectPath = isAdmin ? '/admin' : '/dashboard'
+    navigate(redirectPath, { replace: true })
+    return null
   }
 
-  const onSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
-    setError(null)
-    
+    setError('')
+
     try {
-      // Effettua il login
-      const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: form.email,
-        password: form.password
+      // Solo autenticazione - AuthProvider gestirà il resto
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password
       })
-      
+
       if (signInError) {
-        setError('Credenziali non valide. Verifica email e password.')
-        setLoading(false)
+        console.error('❌ Errore login:', signInError.message)
+        setError(signInError.message)
         return
       }
 
-      if (!authData.user) {
-        setError('Errore durante l\'autenticazione. Riprova.')
-        setLoading(false)
-        return
-      }
-
-      // Carica immediatamente il profilo per determinare il ruolo
-      const { data: userProfile, error: profileError } = await supabase
-        .from('utenti')
-        .select('ruolo')
-        .eq('auth_id', authData.user.id)
-        .single()
-      
-      if (profileError) {
-        console.error('Errore caricamento profilo:', profileError.message)
-        // Fallback al dashboard se non riesce a caricare il profilo
-        navigate('/dashboard')
-        setLoading(false)
-        return
-      }
-
-      // Redirect basato sul ruolo
-      if (userProfile?.ruolo === 'admin') {
-        navigate('/admin/allievi')
-      } else {
-        navigate('/dashboard')
-      }
+      // AuthProvider gestirà automaticamente il redirect tramite onAuthStateChange
+      console.log('✅ Login effettuato, AuthProvider gestirà il redirect...')
       
     } catch (err) {
-      console.error('Errore login:', err.message)
-      setError('Errore di connessione. Riprova più tardi.')
+      console.error('💥 Errore critico durante login:', err)
+      setError('Errore durante il login')
     } finally {
       setLoading(false)
     }
   }
 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+    if (error) setError('')
+  }
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
-      <CardGlass className="w-full max-w-md p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent mb-2">
-            Accedi
-          </h1>
-          <p className="text-white/70">Benvenuto in Roby Club</p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
+      <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 w-full max-w-md border border-white/20">
+        <h1 className="text-3xl font-bold text-white text-center mb-8">Accedi</h1>
         
-        <form onSubmit={onSubmit} className="space-y-6">
+        {error && (
+          <div className="bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg p-3 mb-6">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-white/80 text-sm font-medium mb-2">
               Email
@@ -88,8 +72,8 @@ export default function Login() {
             <input
               type="email"
               name="email"
-              value={form.email}
-              onChange={onChange}
+              value={formData.email}
+              onChange={handleInputChange}
               required
               className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Inserisci la tua email"
@@ -103,32 +87,32 @@ export default function Login() {
             <input
               type="password"
               name="password"
-              value={form.password}
-              onChange={onChange}
+              value={formData.password}
+              onChange={handleInputChange}
               required
               className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Inserisci la tua password"
             />
           </div>
-          
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-          
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-4 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 transition-colors font-semibold disabled:opacity-60"
+            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
           >
-            {loading ? 'Accesso...' : 'Accedi'}
+            {loading ? 'Accesso in corso...' : 'Accedi'}
           </button>
         </form>
-        
-        <p className="mt-4 text-sm text-white/70">
+
+        <p className="text-white/60 text-center mt-6">
           Non hai un account?{' '}
-          <Link className="text-indigo-400 hover:underline" to="/signup">
+          <Link to="/signup" className="text-indigo-400 hover:text-indigo-300 font-medium">
             Registrati
           </Link>
         </p>
-      </CardGlass>
-    </main>
+      </div>
+    </div>
   )
 }
+
+export default Login
