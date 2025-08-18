@@ -80,19 +80,18 @@ function Dashboard() {
 
   // Carica i dati del profilo utente
   useEffect(() => {
+    let isMounted = true
+
     const loadUserData = async () => {
       try {
         setLoading(true)
         setAuthError(false)
-        
-        // Recupera l'utente corrente
-        const { data: { user: currentUser } } = await supabase.auth.getUser()
-        if (!currentUser?.id) {
+
+        if (!user?.id) {
           setMessage({ type: 'error', text: 'Utente non autenticato' })
           return
         }
-        
-        // Query profilo completo secondo le specifiche
+
         const { data: profileData, error } = await supabase
           .from('utenti')
           .select(`
@@ -104,23 +103,24 @@ function Dashboard() {
             corso_1, corso_2, corso_3, corso_4, corso_5,
             prezzo_corso1, prezzo_corso2, prezzo_corso3, prezzo_corso4, prezzo_corso5
           `)
-          .eq('auth_id', currentUser.id)
+          .eq('auth_id', user.id)
           .single()
-        
+
         if (error) {
-          console.error('Errore caricamento profilo:', error?.message, error)
-          
-          // Gestione errori 403/406
-          if (error.code === 'PGRST301' || error.code === 'PGRST116' || 
+          console.error('[supabase] profilo fetch error:', error?.message || error?.code || 'unknown')
+          if (error.code === 'PGRST301' || error.code === 'PGRST116' ||
               error.message?.includes('403') || error.message?.includes('406')) {
+            if (!isMounted) return
             setAuthError(true)
             setMessage({ type: 'error', text: 'Non autorizzato / dati non disponibili' })
           } else {
+            if (!isMounted) return
             setMessage({ type: 'error', text: 'Errore nel caricamento del profilo' })
           }
           return
         }
-        
+
+        if (!isMounted) return
         if (profileData) {
           setProfile(profileData)
           setFormData({
@@ -135,7 +135,6 @@ function Dashboard() {
             taglia_tshirt: profileData.taglia_tshirt || '',
             taglia_pantalone: profileData.taglia_pantalone || '',
             numero_scarpe: profileData.numero_scarpe || '',
-            // Campi admin-only
             corso_1: profileData.corso_1 || '',
             corso_2: profileData.corso_2 || '',
             corso_3: profileData.corso_3 || '',
@@ -148,17 +147,17 @@ function Dashboard() {
             prezzo_corso5: profileData.prezzo_corso5 || ''
           })
         }
-        
       } catch (err) {
-        console.error('Errore generale:', err?.message, err)
-        setMessage({ type: 'error', text: 'Errore nel caricamento dei dati' })
+        console.error('[dashboard] load error:', err?.message || 'unknown')
+        if (isMounted) setMessage({ type: 'error', text: 'Errore nel caricamento dei dati' })
       } finally {
-        setLoading(false)
+        if (isMounted) setLoading(false)
       }
     }
-    
+
     loadUserData()
-  }, [])
+    return () => { isMounted = false }
+  }, [user?.id])
 
   // Funzione handleSubmit per il salvataggio profilo
   // Funzione handleSubmit per il salvataggio profilo
@@ -331,10 +330,10 @@ function Dashboard() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">
-            Benvenuto, {profile?.nome || 'Utente'}!
+            Benvenuto, {profile?.nome && profile?.cognome ? `${profile.nome} ${profile.cognome}` : 'Utente'}!
           </h1>
           <p className="text-white/80">
-            Gestisci il tuo profilo e visualizza i tuoi corsi
+            {profile?.ruolo ? `Ruolo: ${profile.ruolo.charAt(0).toUpperCase() + profile.ruolo.slice(1)}` : 'Gestisci il tuo profilo e visualizza i tuoi corsi'}
           </p>
         </div>
 

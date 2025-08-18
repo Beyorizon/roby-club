@@ -1,13 +1,12 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthProvider'
+import { useNavigate } from 'react-router-dom'
 import CardGlass from '../components/CardGlass.jsx'
+import { supabase } from '../lib/supabase.js'
 
-function Login() {
+function AdminLogin() {
   const [formData, setFormData] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const { signIn } = useAuth()
   const navigate = useNavigate()
 
   const handleChange = (e) => {
@@ -17,16 +16,63 @@ function Login() {
     })
   }
 
+  const checkAdminAccess = async (user) => {
+    // Fallback opzionale via email admin
+    if (user.email === 'grafica.valeriobottiglieri@gmail.com') {
+      return true
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('utenti')
+        .select('ruolo')
+        .eq('auth_id', user.id) // verifica ruolo tramite auth_id
+        .single()
+
+      if (error) {
+        console.error('Errore controllo ruolo admin:', error)
+        return false
+      }
+
+      return data?.ruolo === 'admin'
+    } catch (err) {
+      console.error('Errore verifica admin:', err)
+      return false
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     try {
-      await signIn(formData.email, formData.password)
-      navigate('/dashboard', { replace: true })
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password
+      })
+
+      if (error) {
+        setError('Credenziali non valide o errore di connessione.')
+        return
+      }
+
+      const user = data?.user
+      if (!user) {
+        setError('Login fallito, nessun utente trovato.')
+        return
+      }
+
+      const isAdmin = await checkAdminAccess(user)
+
+      if (isAdmin) {
+        navigate('/admin', { replace: true })
+      } else {
+        await supabase.auth.signOut()
+        setError('Non sei autorizzato come admin.')
+      }
     } catch (err) {
-      setError('Credenziali non valide. Riprova.')
+      setError('Credenziali non valide o errore di connessione.')
     } finally {
       setLoading(false)
     }
@@ -39,10 +85,10 @@ function Login() {
           <div className="p-4 sm:p-6">
             <div className="text-center mb-6">
               <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
-                Accedi
+                Area Admin
               </h2>
               <p className="text-white/70 text-sm">
-                Accedi al tuo account
+                Accedi con le credenziali di amministratore
               </p>
             </div>
 
@@ -64,8 +110,8 @@ function Login() {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                  placeholder="tua@email.com"
+                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
+                  placeholder="admin@example.com"
                 />
               </div>
 
@@ -80,7 +126,7 @@ function Login() {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
                   placeholder="••••••••"
                 />
               </div>
@@ -88,26 +134,11 @@ function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 text-white font-medium py-2 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-transparent text-sm"
+                className="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-800 text-white font-medium py-2 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:ring-offset-transparent text-sm"
               >
-                {loading ? 'Accesso in corso...' : 'Accedi'}
+                {loading ? 'Accesso in corso...' : 'Accedi come Admin'}
               </button>
             </form>
-
-            <div className="mt-4 text-center space-y-2">
-              <Link
-                to="/signup"
-                className="block text-indigo-400 hover:text-indigo-300 text-xs"
-              >
-                Non sei registrato? Registrati
-              </Link>
-              <Link
-                to="/admin-login"
-                className="block text-yellow-400 hover:text-yellow-300 text-xs"
-              >
-                Sei un amministratore? Accedi
-              </Link>
-            </div>
           </div>
         </CardGlass>
       </div>
@@ -115,4 +146,4 @@ function Login() {
   )
 }
 
-export default Login
+export default AdminLogin

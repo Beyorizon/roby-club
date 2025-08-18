@@ -23,15 +23,7 @@ function Signup() {
     setInfo('')
 
     try {
-      console.log('🔄 Tentativo registrazione:', {
-        email: formData.email,
-        nome: formData.nome,
-        cognome: formData.cognome,
-        timestamp: new Date().toISOString()
-      })
-
-      // Registrazione con metadati
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -42,65 +34,23 @@ function Signup() {
         }
       })
 
-      if (signUpError) {
-        console.error('❌ Errore signup Supabase:', {
-          message: signUpError.message,
-          status: signUpError.status,
-          details: signUpError
-        })
-        setError(signUpError.message)
+      if (error) {
+        console.error('Errore signup Supabase:', error)
+        setError('Errore durante la registrazione. Riprova.')
         return
       }
 
-      console.log('✅ Signup completato:', {
-        userId: data.user?.id,
-        email: data.user?.email,
-        emailConfirmed: data.user?.email_confirmed_at,
-        session: !!data.session
-      })
-
-      if (data.user) {
-        if (data.user.email_confirmed_at) {
-          // Email già confermata - login automatico
-          console.log('🔄 Caricamento profilo per redirect...')
-          const profile = await refreshProfile()
-          
-          console.log('👤 Profilo caricato:', {
-            profile,
-            ruolo: profile?.ruolo
-          })
-          
-          if (profile?.ruolo?.toLowerCase() === 'admin') {
-            console.log('🔀 Redirect admin -> /admin')
-            navigate('/admin', { replace: true })
-          } else {
-            if (profile === null) {
-              console.log('⏳ Profilo in creazione, redirect ritardato -> /dashboard')
-              setInfo('Profilo in creazione, reindirizzamento alla dashboard...')
-              setTimeout(() => {
-                navigate('/dashboard', { replace: true })
-              }, 2000)
-            } else {
-              console.log('🔀 Redirect user -> /dashboard')
-              navigate('/dashboard', { replace: true })
-            }
-          }
-        } else {
-          // Email da confermare
-          console.log('📧 Email da confermare, redirect -> /login')
-          setInfo('Registrazione completata! Controlla la tua email per confermare l\'account.')
-          setTimeout(() => {
-            navigate('/login', { replace: true })
-          }, 3000)
-        }
+      if (data?.user?.email_confirmed_at) {
+        navigate('/dashboard')
+      } else {
+        setInfo('Controlla la tua email per confermare l\'account, poi torna al login.')
+        setTimeout(() => {
+          navigate('/login')
+        }, 3000)
       }
     } catch (err) {
-      console.error('💥 Errore critico signup:', {
-        error: err,
-        message: err.message,
-        stack: err.stack
-      })
-      setError('Errore durante la registrazione')
+      console.error('Errore critico signup:', err)
+      setError('Errore imprevisto durante la registrazione.')
     } finally {
       setLoading(false)
     }

@@ -1,10 +1,12 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AuthProvider from './context/AuthProvider.jsx'
-import ProtectedRoute from './components/ProtectedRoute.jsx'
+import UserGuard from './components/UserGuard.jsx'
+import AdminGuard from './components/AdminGuard.jsx'
 import Navbar from './components/Navbar.jsx'
 import Home from './pages/Home.jsx'
 import Login from './pages/Login.jsx'
+import AdminLogin from './pages/AdminLogin.jsx'
 import Signup from './pages/Signup.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 
@@ -19,51 +21,51 @@ import './App.css'
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900">
+    <BrowserRouter>
+      <AuthProvider>
+        <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 overflow-x-hidden">
           <Navbar />
-          <Routes>
-            {/* Route pubbliche */}
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            
-            {/* Dashboard per utenti autenticati non-admin */}
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute requiredRole="user">
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Area admin - solo per admin */}
-            <Route 
-              path="/admin/*" 
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <AdminLayout />
-                </ProtectedRoute>
-              }
-            >
-              {/* Redirect da /admin a /admin/allievi */}
-              <Route index element={<Navigate to="allievi" replace />} />
+          <main className="pt-14">
+            <Routes>
+              {/* Route pubbliche */}
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/admin-login" element={<AdminLogin />} />
+              <Route path="/signup" element={<Signup />} />
               
-              {/* Sottopagine admin */}
-              <Route path="allievi" element={<Allievi />} />
-              <Route path="allievi/:authId" element={<AllievoDettaglio />} />
-              <Route path="notizie" element={<Notizie />} />
-              <Route path="riepilogo" element={<Riepilogo />} />
-            </Route>
-            
-            {/* Fallback per route non trovate */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              {/* Dashboard per utenti autenticati */}
+              <Route 
+                path="/dashboard" 
+                element={
+                  <UserGuard>
+                    <Dashboard />
+                  </UserGuard>
+                } 
+              />
+              
+              {/* Area admin protetta */}
+              <Route 
+                path="/admin/*" 
+                element={
+                  <AdminGuard>
+                    <AdminLayout />
+                  </AdminGuard>
+                }
+              >
+                <Route index element={<Navigate to="allievi" replace />} />
+                <Route path="allievi" element={<Allievi />} />
+                <Route path="allievi/:authId" element={<AllievoDettaglio />} />
+                <Route path="notizie" element={<Notizie />} />
+                <Route path="riepilogo" element={<Riepilogo />} />
+              </Route>
+              
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
         </div>
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   )
 }
 

@@ -4,10 +4,10 @@ import { supabase } from '../../lib/supabase.js'
 import { useAuth } from '../../context/AuthProvider'
 
 export default function Allievi() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [allievi, setAllievi] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [listLoading, setListLoading] = useState(true)
   const [error, setError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [page, setPage] = useState(1)
@@ -18,20 +18,19 @@ export default function Allievi() {
 
   // Verifica permessi admin
   useEffect(() => {
-    if (!isAdmin) {
+    if (!authLoading && !isAdmin) {
       navigate('/dashboard', { replace: true })
     }
-  }, [isAdmin, navigate])
+  }, [isAdmin, authLoading, navigate])
 
   // Funzione per caricare gli allievi con paginazione e ricerca
   const loadAllievi = useCallback(async (searchQuery = '', currentPage = 1) => {
-    setLoading(true)
+    setListLoading(true)
     setError('')
-    
     try {
       const from = (currentPage - 1) * pageSize
       const to = from + pageSize - 1
-      
+
       let query = supabase
         .from('utenti')
         .select('id, auth_id, nome, cognome, email, ruolo, data_iscrizione', { count: 'exact' })
@@ -39,39 +38,31 @@ export default function Allievi() {
         .order('cognome')
         .order('nome')
         .range(from, to)
-      
-      // Applica filtro di ricerca se presente
+
       if (searchQuery.trim()) {
         const q = searchQuery.trim()
         query = query.or(`nome.ilike.%${q}%,cognome.ilike.%${q}%,email.ilike.%${q}%`)
       }
-      
+
       const { data, error: queryError, count } = await query
-      
+
       if (queryError) {
-        console.error('❌ Errore caricamento allievi:', queryError)
-        console.error('Dettagli errore Supabase:', {
-          message: queryError.message,
-          details: queryError.details,
-          hint: queryError.hint,
-          code: queryError.code
-        })
+        console.error('[supabase] allievi fetch error:', queryError?.message || queryError?.code || 'unknown')
         setError(`Errore nel caricamento degli allievi: ${queryError.message}`)
         setAllievi([])
         setTotalCount(0)
       } else {
-        console.log('✅ Allievi caricati:', data?.length || 0)
         setAllievi(data || [])
         setTotalCount(count || 0)
         setError('')
       }
     } catch (err) {
-      console.error('💥 Errore critico caricamento allievi:', err)
+      console.error('[allievi] load error:', err?.message || 'unknown')
       setError('Errore critico durante il caricamento')
       setAllievi([])
       setTotalCount(0)
     } finally {
-      setLoading(false)
+      setListLoading(false)
     }
   }, [pageSize])
 
@@ -106,7 +97,7 @@ export default function Allievi() {
 
   // Gestione clic su riga allievo
   const handleAllieveClick = (allievo) => {
-    navigate(`/admin/allievi/${allievo.id}`)
+    navigate(`/admin/allievi/${allievo.auth_id}`)
   }
 
   // Calcolo paginazione
@@ -148,13 +139,13 @@ export default function Allievi() {
       )}
 
       {/* Stato di caricamento */}
-      {loading ? (
+      {listLoading ? (
         <div className="text-center py-12">
           <div className="text-white/70 text-lg">Caricamento allievi...</div>
         </div>
       ) : (
         <>
-          {/* Tabella allievi */}
+          {/* Tabella allievi e resto della UI */}
           {allievi.length > 0 ? (
             <div className="bg-white/5 rounded-xl overflow-hidden border border-white/10">
               <div className="overflow-x-auto">
@@ -193,8 +184,9 @@ export default function Allievi() {
                           </div>
                         </td>
                         <td className="py-4 px-6">
+                          {/* Dentro la tabella, nella cella Azioni */}
                           <Link
-                            to={`/admin/allievi/${allievo.id}`}
+                            to={`/admin/allievi/${allievo.auth_id}`}
                             onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center px-3 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-100 border border-indigo-500/30 hover:bg-indigo-500/30 text-sm font-medium transition-colors"
                           >
