@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase.js'
 import PaymentGrid from '../../components/PaymentGrid'
 
 // Costante per il costo mensile
-const COSTO_MENSILE = 30
+// const COSTO_MENSILE = 30 // RIMUOVI QUESTA RIGA
 
 // Array dei mesi per il 2025
 const MESI_2025 = [
@@ -48,6 +48,7 @@ function AllievoDettaglio() {
   const [corsi, setCorsi] = useState([])
   const [pagamenti, setPagamenti] = useState([])
   const [loadingPagamenti, setLoadingPagamenti] = useState(false)
+  const [defaultImporto, setDefaultImporto] = useState(30)
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -142,85 +143,123 @@ function AllievoDettaglio() {
 
   // Gestisce il click sui bottoni dei mesi
   const handleMeseClick = async (mese) => {
-    if (!profile?.id) return
-    
     try {
-      // Trova il pagamento esistente per questo mese
-      const pagamentoEsistente = pagamenti.find(p => p.mese === mese)
-      
+      const pagamento = pagamenti.find(p => p.mese === mese)
       let nuovoStato
-      if (!pagamentoEsistente || pagamentoEsistente.stato === 'non_dovuto') {
-        nuovoStato = 'si'
-      } else if (pagamentoEsistente.stato === 'si') {
-        nuovoStato = 'no'
+      
+      if (!pagamento || pagamento.stato !== 'pagato') {
+        nuovoStato = 'pagato'
       } else {
-        nuovoStato = 'non_dovuto'
+        nuovoStato = 'non_pagato'
       }
       
-      if (pagamentoEsistente) {
-        // Aggiorna il pagamento esistente
+      const nuovoImporto = 
+        nuovoStato === "pagato" 
+          ? pagamento?.importo || defaultImporto 
+          : null
+      
+      if (pagamento) {
+        // Update esistente
         const { error } = await supabase
-          .from('pagamenti')
-          .update({ stato: nuovoStato, updated_at: new Date().toISOString() })
-          .eq('id', pagamentoEsistente.id)
+          .from("pagamenti")
+          .update({
+            stato: nuovoStato,
+            importo: nuovoImporto,
+          })
+          .eq("id", pagamento.id)
         
-        if (error) {
-          console.error('Errore aggiornamento pagamento:', error)
-          return
-        }
-        
-        // Aggiorna lo state locale
-        setPagamenti(prev => prev.map(p => 
-          p.id === pagamentoEsistente.id 
-            ? { ...p, stato: nuovoStato, updated_at: new Date().toISOString() }
-            : p
-        ))
+        if (error) throw error
       } else {
-        // Crea un nuovo pagamento
-        const { data, error } = await supabase
-          .from('pagamenti')
+        // Insert nuovo
+        const { error } = await supabase
+          .from("pagamenti")
           .insert({
-            allievo_id: profile.id,
-            tipo: 'mensile',
+            allievo_id: id,
             mese: mese,
             stato: nuovoStato,
-            updated_at: new Date().toISOString()
+            importo: nuovoImporto,
           })
-          .select()
-          .single()
         
-        if (error) {
-          console.error('Errore creazione pagamento:', error)
-          return
+        if (error) throw error
+      }
+      
+      // Aggiorna stato locale
+      setPagamenti(prev => {
+        const index = prev.findIndex(p => p.mese === mese)
+        const nuovoPagamento = { 
+          id: pagamento?.id, 
+          allievo_id: id, 
+          mese, 
+          stato: nuovoStato, 
+          importo: nuovoImporto 
         }
         
-        // Aggiunge il nuovo pagamento allo state
-        setPagamenti(prev => [...prev, data])
-      }
+        if (index >= 0) {
+          return prev.map((p, i) => i === index ? nuovoPagamento : p)
+        } else {
+          return [...prev, nuovoPagamento]
+        }
+      })
     } catch (err) {
       console.error('Errore gestione pagamento:', err)
     }
   }
 
-  // Calcola il totale dei mesi pagati
+  // Calcola il totale dei mesi pagati usando gli importi effettivi
   const calcolaTotale = () => {
-    const mesiPagati = pagamenti.filter(p => p.stato === 'si').length
-    return mesiPagati * COSTO_MENSILE
+    return pagamenti
+      .filter(p => p.stato === 'pagato')
+      .reduce((total, p) => total + (Number(p.importo) || 0), 0)
   }
 
   // Ottiene lo stato di un mese specifico
   const getStatoMese = (mese) => {
     const pagamento = pagamenti.find(p => p.mese === mese)
+    if (!pagamento) return 'non_dovuto'
+    
+    // Logica auto-scadenza: se oggi > 10 del mese e stato è non_pagato
+    if (pagamento.stato === 'non_pagato') {
+      const oggi = new Date()
+      const meseIndex = MESI_2025.indexOf(mese)
+      
+      // Se siamo nel mese corrente e dopo il 10, o in un mese successivo
+      if ((oggi.getMonth() === meseIndex && oggi.getDate() > 10) || oggi.getMonth() > meseIndex) {
+        return 'scaduto'
+      }
+    }
+    
     return pagamento?.stato || 'non_dovuto'
   }
 
   // Ottiene il colore del bottone in base allo stato
   const getColoreMese = (stato) => {
     switch (stato) {
-      case 'si': return 'bg-green-500 hover:bg-green-600 text-white'
-      case 'no': return 'bg-red-500 hover:bg-red-600 text-white'
+      case 'pagato': return 'bg-green-500 hover:bg-green-600 text-white'
+      case 'non_pagato': return 'bg-yellow-500 hover:bg-yellow-600 text-white'
+      case 'scaduto': return 'bg-red-500 hover:bg-red-600 text-white'
       case 'non_dovuto': return 'bg-gray-500 hover:bg-gray-600 text-white'
       default: return 'bg-gray-500 hover:bg-gray-600 text-white'
+    }
+  }
+
+  // Ottiene il testo da mostrare per ogni mese
+  const getTestoMese = (mese) => {
+    const pagamento = pagamenti.find(p => p.mese === mese)
+    if (!pagamento) return 'Non dovuto'
+    
+    const stato = getStatoMese(mese) // Usa la funzione che include la logica di scadenza
+    
+    switch (stato) {
+      case 'pagato': 
+        return pagamento.importo ? `Pagato (€${pagamento.importo})` : 'Pagato'
+      case 'non_pagato': 
+        return 'Non pagato'
+      case 'scaduto':
+        return 'Non pagato / Scaduto'
+      case 'non_dovuto':
+        return 'Non dovuto'
+      default:
+        return 'Non dovuto'
     }
   }
 
@@ -429,12 +468,13 @@ function AllievoDettaglio() {
           </div>
         </div>
 
+        {/* RIMUOVI COMPLETAMENTE QUESTA SEZIONE PaymentGrid */}
         {/* PaymentGrid */}
-        {profile?.auth_id && (
+        {/* {profile?.auth_id && (
           <PaymentGrid authId={profile.auth_id} isAdminView={true} />
-        )}
+        )} */}
 
-        {/* Sezione Pagamenti 2025 */}
+        {/* Sezione Pagamenti 2025 - MANTIENI SOLO QUESTA */}
         <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-semibold text-white">Pagamenti 2025</h2>
@@ -443,12 +483,28 @@ function AllievoDettaglio() {
             </div>
           </div>
           
+          {/* Input per importo mensile di default */}
+          <div className="mb-4">
+            <label className="mr-2">L'allievo paga al mese:</label>
+            <input
+              type="number"
+              value={defaultImporto}
+              min="0"
+              step="0.01"
+              onChange={(e) => setDefaultImporto(Number(e.target.value))}
+              className="border rounded px-2 py-1 w-24 text-black"
+            />
+            €
+          </div>
+          
           {loadingPagamenti ? (
             <div className="text-white text-center">Caricamento pagamenti...</div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {MESI_2025.map((mese) => {
+              {MESI_2025.map((mese, index) => {
                 const stato = getStatoMese(mese)
+                const testoMese = getTestoMese(mese)
+                
                 return (
                   <button
                     key={mese}
@@ -457,27 +513,27 @@ function AllievoDettaglio() {
                       getColoreMese(stato)
                     }`}
                   >
-                    {mese}
+                    <div className="text-sm">{mese}</div>
+                    <div className="text-xs mt-1">{testoMese}</div>
                   </button>
                 )
               })}
             </div>
           )}
           
-          <div className="mt-4 text-sm text-white/70">
-            <div className="flex flex-wrap gap-4">
-              <span className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-green-500 rounded"></div>
-                Pagato (€{COSTO_MENSILE})
-              </span>
-              <span className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-red-500 rounded"></div>
-                Non pagato
-              </span>
-              <span className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-gray-500 rounded"></div>
-                Non dovuto
-              </span>
+          {/* Legenda */}
+          <div className="mt-6 flex flex-wrap gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-green-500 rounded"></div>
+              <span className="text-white">Pagato</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-red-500 rounded"></div>
+              <span className="text-white">Non pagato / Scaduto</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-gray-500 rounded"></div>
+              <span className="text-white">Non dovuto</span>
             </div>
           </div>
         </div>
