@@ -97,7 +97,7 @@ export default function Allievi() {
 
   // Gestione clic su riga allievo
   const handleAllieveClick = (allievo) => {
-    navigate(`/admin/allievi/${allievo.auth_id}`)
+    navigate(`/admin/allievi/${allievo.id}`)
   }
 
   // Calcolo paginazione
@@ -186,7 +186,7 @@ export default function Allievi() {
                         <td className="py-4 px-6">
                           {/* Dentro la tabella, nella cella Azioni */}
                           <Link
-                            to={`/admin/allievi/${allievo.auth_id}`}
+                            to={`/admin/allievi/${allievo.id}`}
                             onClick={(e) => e.stopPropagation()}
                             className="inline-flex items-center px-3 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-100 border border-indigo-500/30 hover:bg-indigo-500/30 text-sm font-medium transition-colors"
                           >

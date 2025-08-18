@@ -54,7 +54,7 @@ function App() {
               >
                 <Route index element={<Navigate to="allievi" replace />} />
                 <Route path="allievi" element={<Allievi />} />
-                <Route path="allievi/:authId" element={<AllievoDettaglio />} />
+                <Route path="allievi/:id" element={<AllievoDettaglio />} />
                 <Route path="notizie" element={<Notizie />} />
                 <Route path="riepilogo" element={<Riepilogo />} />
               </Route>

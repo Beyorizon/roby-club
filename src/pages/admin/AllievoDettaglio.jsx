@@ -1,477 +1,668 @@
-import React, { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import supabase from '../../lib/supabase.js'
-import PaymentGrid from '../../components/PaymentGrid.jsx'
+import { useAuth } from '../../context/AuthProvider'
+import { supabase } from '../../lib/supabase.js'
+import PaymentGrid from '../../components/PaymentGrid'
 
-export default function AllievoDettaglio() {
-  const { authId } = useParams()
-  const [allievo, setAllievo] = useState(null)
-  const [corsi, setCorsi] = useState([])
-  const [iscrizioni, setIscrizioni] = useState([])
+function AllievoDettaglio() {
+  const { id } = useParams()
+  const { isAdmin } = useAuth()
+  
+  // State per il profilo completo
+  const [profile, setProfile] = useState(null)
+  const [formData, setFormData] = useState({
+    nome: '',
+    cognome: '',
+    data_nascita: '',
+    cellulare: '',
+    nome_genitore1: '',
+    cellulare_genitore1: '',
+    nome_genitore2: '',
+    cellulare_genitore2: '',
+    taglia_tshirt: '',
+    taglia_pantalone: '',
+    numero_scarpe: '',
+    // Campi admin-only per visualizzazione
+    corso_1: '',
+    corso_2: '',
+    corso_3: '',
+    corso_4: '',
+    corso_5: '',
+    prezzo_corso1: '',
+    prezzo_corso2: '',
+    prezzo_corso3: '',
+    prezzo_corso4: '',
+    prezzo_corso5: ''
+  })
+  
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
-  const [editingProfile, setEditingProfile] = useState(false)
-  const [profileForm, setProfileForm] = useState({})
-  const [newCourse, setNewCourse] = useState({ corso_id: '', prezzo: '' })
-  const [addingCourse, setAddingCourse] = useState(false)
+  const [errors, setErrors] = useState({})
+  const [authError, setAuthError] = useState(false)
 
-  useEffect(() => {
-    loadData()
-  }, [authId])
-
-  const loadData = async () => {
-    setLoading(true)
-    
-    // Carica dati allievo
-    const { data: allievoData, error: allievoError } = await supabase
-      .from('utenti')
-      .select('*')
-      .eq('auth_id', authId)
-      .single()
-    
-    // Carica tutti i corsi
-    const { data: corsiData, error: corsiError } = await supabase
-      .from('corsi')
-      .select('*')
-      .order('nome')
-    
-    // Carica iscrizioni dell'allievo con prezzi
-    const { data: iscrizioniData, error: iscrizioniError } = await supabase
-      .from('iscrizioni')
-      .select('*, corsi(nome, descrizione)')
-      .eq('auth_id', authId)
-      .eq('attiva', true)
-    
-    if (allievoError || corsiError || iscrizioniError) {
-      console.error('Errore caricamento dati:', { allievoError, corsiError, iscrizioniError })
-    } else {
-      setAllievo(allievoData)
-      setCorsi(corsiData || [])
-      setIscrizioni(iscrizioniData || [])
-      setProfileForm(allievoData || {})
+  // Helper per convertire date
+  const toISODate = (d) => {
+    if (!d) return null;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(d)) {
+      const [dd, mm, yyyy] = d.split('/');
+      return `${yyyy}-${mm}-${dd}`;
     }
-    
-    setLoading(false)
-  }
+    return d; // già in ISO
+  };
 
-  const updateProfile = async (e) => {
+  const fromISODate = (d) => {
+    if (!d) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const [yyyy, mm, dd] = d.split('-');
+      return `${dd}/${mm}/${yyyy}`;
+    }
+    return d; // già in formato DD/MM/YYYY
+  };
+
+  // Funzione per ottenere corsi attivi (non null)
+  const getActiveCourses = () => {
+    if (!profile) return [];
+    const courses = [];
+    for (let i = 1; i <= 5; i++) {
+      const corso = profile[`corso_${i}`];
+      const prezzo = profile[`prezzo_corso${i}`];
+      if (corso) {
+        courses.push({
+          numero: i,
+          corso,
+          prezzo: prezzo ? parseFloat(prezzo).toFixed(2) : '0.00'
+        });
+      }
+    }
+    return courses;
+  };
+
+  // Carica i dati del profilo utente tramite id
+  useEffect(() => {
+    let isMounted = true
+
+    const loadUserData = async () => {
+      try {
+        setLoading(true)
+        setAuthError(false)
+
+        if (!id) {
+          setMessage({ type: 'error', text: 'ID allievo non specificato' })
+          return
+        }
+
+        console.log('[DEBUG] Caricamento dati allievo con id:', id)
+
+        const { data: profileData, error } = await supabase
+          .from('utenti')
+          .select(`
+            id, auth_id, ruolo, email,
+            nome, cognome, data_iscrizione, data_nascita, cellulare,
+            nome_genitore1, cellulare_genitore1,
+            nome_genitore2, cellulare_genitore2,
+            taglia_tshirt, taglia_pantalone, numero_scarpe,
+            corso_1, corso_2, corso_3, corso_4, corso_5,
+            prezzo_corso1, prezzo_corso2, prezzo_corso3, prezzo_corso4, prezzo_corso5
+          `)
+          .eq('id', id)
+          .single()
+
+        if (error) {
+          console.error('[DEBUG] Errore fetch allievo:', error?.message || error?.code || 'unknown')
+          if (error.code === 'PGRST301' || error.code === 'PGRST116' ||
+              error.message?.includes('403') || error.message?.includes('406')) {
+            if (!isMounted) return
+            setAuthError(true)
+            setMessage({ type: 'error', text: 'Non autorizzato / allievo non trovato' })
+          } else {
+            if (!isMounted) return
+            setMessage({ type: 'error', text: 'Errore nel caricamento del profilo allievo' })
+          }
+          return
+        }
+
+        if (!isMounted) return
+        if (profileData) {
+          console.log('[DEBUG] Allievo caricato:', profileData)
+          setProfile(profileData)
+          setFormData({
+            nome: profileData.nome || '',
+            cognome: profileData.cognome || '',
+            data_nascita: profileData.data_nascita ? fromISODate(profileData.data_nascita) : '',
+            cellulare: profileData.cellulare || '',
+            nome_genitore1: profileData.nome_genitore1 || '',
+            cellulare_genitore1: profileData.cellulare_genitore1 || '',
+            nome_genitore2: profileData.nome_genitore2 || '',
+            cellulare_genitore2: profileData.cellulare_genitore2 || '',
+            taglia_tshirt: profileData.taglia_tshirt || '',
+            taglia_pantalone: profileData.taglia_pantalone || '',
+            numero_scarpe: profileData.numero_scarpe || '',
+            corso_1: profileData.corso_1 || '',
+            corso_2: profileData.corso_2 || '',
+            corso_3: profileData.corso_3 || '',
+            corso_4: profileData.corso_4 || '',
+            corso_5: profileData.corso_5 || '',
+            prezzo_corso1: profileData.prezzo_corso1 || '',
+            prezzo_corso2: profileData.prezzo_corso2 || '',
+            prezzo_corso3: profileData.prezzo_corso3 || '',
+            prezzo_corso4: profileData.prezzo_corso4 || '',
+            prezzo_corso5: profileData.prezzo_corso5 || ''
+          })
+        }
+      } catch (err) {
+        console.error('[DEBUG] Errore caricamento:', err?.message || 'unknown')
+        if (isMounted) setMessage({ type: 'error', text: 'Errore nel caricamento dei dati' })
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+
+    loadUserData()
+    return () => { isMounted = false }
+  }, [id])
+
+  // Funzione handleSubmit per il salvataggio profilo
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    
     try {
+      setSaving(true)
+      setErrors({})
+      
+      // Validazione campi obbligatori
+      const newErrors = {}
+      if (!formData.nome || (typeof formData.nome === 'string' && !formData.nome.trim())) {
+        newErrors.nome = 'Nome obbligatorio'
+      }
+      if (!formData.cognome || (typeof formData.cognome === 'string' && !formData.cognome.trim())) {
+        newErrors.cognome = 'Cognome obbligatorio'
+      }
+      
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors)
+        setSaving(false)
+        return
+      }
+      
+      // Helper function per pulire i valori in modo sicuro
+      const cleanValue = (value, fieldType = 'string') => {
+        if (value === null || value === undefined) return null
+        
+        if (fieldType === 'number') {
+          // Per campi numerici
+          if (typeof value === 'number') return value
+          if (typeof value === 'string') {
+            const trimmed = value.trim()
+            return trimmed && !isNaN(trimmed) ? parseFloat(trimmed) : null
+          }
+          return null
+        }
+        
+        if (fieldType === 'integer') {
+          // Per campi interi
+          if (typeof value === 'number') return Math.floor(value)
+          if (typeof value === 'string') {
+            const trimmed = value.trim()
+            return trimmed && !isNaN(trimmed) ? parseInt(trimmed) : null
+          }
+          return null
+        }
+        
+        // Per campi stringa (default)
+        if (typeof value === 'string') {
+          const trimmed = value.trim()
+          return trimmed || null
+        }
+        
+        return value
+      }
+      
+      // Prepara updates solo con campi modificabili dall'utente
+      const updates = {}
+      
+      // Campi modificabili dall'utente (stringhe)
+      const stringFields = [
+        'nome', 'cognome', 'cellulare',
+        'nome_genitore1', 'cellulare_genitore1',
+        'nome_genitore2', 'cellulare_genitore2',
+        'taglia_tshirt', 'taglia_pantalone'
+      ]
+      
+      stringFields.forEach(field => {
+        updates[field] = cleanValue(formData[field], 'string')
+      })
+      
+      // Campo numerico speciale
+      updates.numero_scarpe = cleanValue(formData.numero_scarpe, 'integer')
+      
+      // Data nascita con conversione
+      updates.data_nascita = toISODate(formData.data_nascita)
+      
+      // Campi admin-only (solo se admin)
+      if (isAdmin) {
+        for (let i = 1; i <= 5; i++) {
+          const corsoField = `corso_${i}`
+          const prezzoField = `prezzo_corso${i}`
+          
+          updates[corsoField] = cleanValue(formData[corsoField], 'string')
+          updates[prezzoField] = cleanValue(formData[prezzoField], 'number')
+        }
+      }
+
+      console.log('[DEBUG] Aggiornamento profilo allievo id:', id, updates)
+      
+      // Esegui update
       const { error } = await supabase
         .from('utenti')
-        .update({
-          nome: profileForm.nome,
-          cognome: profileForm.cognome,
-          data_nascita: profileForm.data_nascita,
-          telefono: profileForm.telefono,
-          nome_genitore: profileForm.nome_genitore,
-          telefono_genitore: profileForm.telefono_genitore,
-          taglia_maglietta: profileForm.taglia_maglietta,
-          taglia_pantaloncini: profileForm.taglia_pantaloncini,
-          data_iscrizione: profileForm.data_iscrizione
-        })
-        .eq('auth_id', authId)
+        .update(updates)
+        .eq('id', id)
       
-      if (error) throw error
+      if (error) {
+        console.error('[DEBUG] Errore update profilo:', error?.message, error)
+        
+        // Gestione errori specifici RLS
+        if (error.code === 'PGRST116' || error.message?.includes('RLS')) {
+          setMessage({ type: 'error', text: 'Permesso negato: alcuni campi non sono modificabili' })
+        } else {
+          setMessage({ type: 'error', text: `Errore nell'aggiornamento: ${error.message}` })
+        }
+        return
+      }
       
-      setAllievo(profileForm)
-      setEditingProfile(false)
-      showMessage('success', 'Profilo aggiornato')
-    } catch (error) {
-      showMessage('error', 'Errore: ' + error.message)
+      setMessage({ type: 'success', text: 'Profilo allievo aggiornato con successo!' })
+      
+      // Ricarica i dati aggiornati
+      const { data: updatedProfile } = await supabase
+        .from('utenti')
+        .select('*')
+        .eq('id', id)
+        .single()
+      
+      if (updatedProfile) {
+        setProfile(updatedProfile)
+      }
+      
+      console.log('[DEBUG] Profilo aggiornato con successo')
+      
+      // Pulisci il messaggio dopo 3 secondi
+      setTimeout(() => {
+        setMessage({ type: '', text: '' })
+      }, 3000)
+      
+    } catch (e) {
+      console.error('[DEBUG] Update profilo fallito:', e?.message, e)
+      setMessage({ type: 'error', text: 'Errore nell\'aggiornamento del profilo' })
+    } finally {
+      setSaving(false)
     }
   }
 
-  const addCourse = async () => {
-    if (!newCourse.corso_id || !newCourse.prezzo) {
-      showMessage('error', 'Seleziona corso e inserisci prezzo')
-      return
-    }
+  // Gestione cambio input
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
     
-    setAddingCourse(true)
-    try {
-      const { data, error } = await supabase
-        .from('iscrizioni')
-        .upsert({
-          auth_id: authId,
-          corso_id: parseInt(newCourse.corso_id),
-          prezzo: parseFloat(newCourse.prezzo),
-          attiva: true
-        })
-        .select('*, corsi(nome, descrizione)')
-      
-      if (error) throw error
-      
-      await loadData() // Ricarica i dati
-      setNewCourse({ corso_id: '', prezzo: '' })
-      showMessage('success', 'Corso aggiunto')
-    } catch (error) {
-      showMessage('error', 'Errore: ' + error.message)
+    // Rimuovi errore se l'utente inizia a digitare
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }))
     }
-    setAddingCourse(false)
-  }
-
-  const updateCoursePrice = async (iscrizioneId, newPrice) => {
-    try {
-      const { error } = await supabase
-        .from('iscrizioni')
-        .update({ prezzo: parseFloat(newPrice) })
-        .eq('id', iscrizioneId)
-      
-      if (error) throw error
-      
-      setIscrizioni(prev => prev.map(i => 
-        i.id === iscrizioneId ? { ...i, prezzo: parseFloat(newPrice) } : i
-      ))
-      showMessage('success', 'Prezzo aggiornato')
-    } catch (error) {
-      showMessage('error', 'Errore: ' + error.message)
-    }
-  }
-
-  const removeCourse = async (iscrizioneId) => {
-    if (!confirm('Rimuovere questo corso?')) return
-    
-    try {
-      const { error } = await supabase
-        .from('iscrizioni')
-        .update({ attiva: false })
-        .eq('id', iscrizioneId)
-      
-      if (error) throw error
-      
-      setIscrizioni(prev => prev.filter(i => i.id !== iscrizioneId))
-      showMessage('success', 'Corso rimosso')
-    } catch (error) {
-      showMessage('error', 'Errore: ' + error.message)
-    }
-  }
-
-  const showMessage = (type, text) => {
-    setMessage({ type, text })
-    setTimeout(() => setMessage({ type: '', text: '' }), 3000)
   }
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="text-center py-8">
-          <div className="text-white/70">Caricamento dettagli allievo...</div>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 p-4 flex items-center justify-center">
+        <div className="text-white text-xl">Caricamento...</div>
       </div>
     )
   }
 
-  if (!allievo) {
+  // Banner errore autorizzazione
+  if (authError || !profile) {
     return (
-      <div className="p-6">
-        <div className="text-center py-8">
-          <div className="text-red-400">Allievo non trovato</div>
-          <Link to="/admin/allievi" className="text-indigo-400 hover:underline mt-2 inline-block">
-            Torna alla lista allievi
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
-  const availableCourses = corsi.filter(corso => 
-    !iscrizioni.some(i => i.corso_id === corso.id)
-  )
-
-  return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 p-4 flex items-center justify-center">
+        <div className="bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg p-6 max-w-md text-center">
+          <h2 className="text-xl font-semibold mb-2">Allievo non trovato</h2>
+          <p className="mb-4">L'allievo richiesto non esiste o non hai i permessi per visualizzarlo</p>
           <Link 
             to="/admin/allievi" 
-            className="text-indigo-400 hover:underline text-sm mb-2 inline-block"
+            className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-500/20 text-indigo-100 border border-indigo-500/30 hover:bg-indigo-500/30 transition-colors"
           >
             ← Torna alla lista allievi
           </Link>
-          <h2 className="text-2xl font-bold">
-            {allievo.nome} {allievo.cognome}
-          </h2>
         </div>
       </div>
+    )
+  }
 
-      {/* Messaggi */}
-      {message.text && (
-        <div className={`p-4 rounded-xl border ${message.type === 'success' 
-            ? 'bg-green-500/20 border-green-500/30 text-green-100'
-            : 'bg-red-500/20 border-red-500/30 text-red-100'
-        }`}>
-          {message.text}
-        </div>
-      )}
+  const activeCourses = getActiveCourses()
 
-      {/* Card Anagrafica */}
-      <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold">Anagrafica</h3>
-          <button
-            onClick={() => setEditingProfile(!editingProfile)}
-            className="px-4 py-2 rounded-lg bg-indigo-500/20 text-indigo-100 border border-indigo-500/30 hover:bg-indigo-500/30 transition-colors"
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 p-4">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">
+            Dettaglio Allievo: {profile?.nome && profile?.cognome ? `${profile.nome} ${profile.cognome}` : 'Sconosciuto'}
+          </h1>
+          <p className="text-white/80 mb-4">
+            {profile?.ruolo ? `Ruolo: ${profile.ruolo.charAt(0).toUpperCase() + profile.ruolo.slice(1)}` : 'Gestisci il profilo dell\'allievo'}
+          </p>
+          <Link 
+            to="/admin/allievi" 
+            className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-500/20 text-indigo-100 border border-indigo-500/30 hover:bg-indigo-500/30 transition-colors"
           >
-            {editingProfile ? 'Annulla' : 'Modifica'}
-          </button>
+            ← Torna alla lista allievi
+          </Link>
         </div>
 
-        {editingProfile ? (
-          <form onSubmit={updateProfile} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Nome *</label>
-              <input
-                type="text"
-                value={profileForm.nome || ''}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, nome: e.target.value }))}
-                className="w-full px-3 py-2 bg-transparent border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Cognome *</label>
-              <input
-                type="text"
-                value={profileForm.cognome || ''}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, cognome: e.target.value }))}
-                className="w-full px-3 py-2 bg-transparent border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Data Nascita</label>
-              <input
-                type="date"
-                value={profileForm.data_nascita || ''}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, data_nascita: e.target.value }))}
-                className="w-full px-3 py-2 bg-transparent border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Data Iscrizione</label>
-              <input
-                type="date"
-                value={profileForm.data_iscrizione || ''}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, data_iscrizione: e.target.value }))}
-                className="w-full px-3 py-2 bg-transparent border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Telefono</label>
-              <input
-                type="tel"
-                value={profileForm.telefono || ''}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, telefono: e.target.value }))}
-                className="w-full px-3 py-2 bg-transparent border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Nome Genitore</label>
-              <input
-                type="text"
-                value={profileForm.nome_genitore || ''}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, nome_genitore: e.target.value }))}
-                className="w-full px-3 py-2 bg-transparent border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Telefono Genitore</label>
-              <input
-                type="tel"
-                value={profileForm.telefono_genitore || ''}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, telefono_genitore: e.target.value }))}
-                className="w-full px-3 py-2 bg-transparent border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Taglia Maglietta</label>
-              <select
-                value={profileForm.taglia_maglietta || ''}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, taglia_maglietta: e.target.value }))}
-                className="w-full px-3 py-2 bg-transparent border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Seleziona</option>
-                <option value="XS">XS</option>
-                <option value="S">S</option>
-                <option value="M">M</option>
-                <option value="L">L</option>
-                <option value="XL">XL</option>
-                <option value="XXL">XXL</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Taglia Pantaloncini</label>
-              <select
-                value={profileForm.taglia_pantaloncini || ''}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, taglia_pantaloncini: e.target.value }))}
-                className="w-full px-3 py-2 bg-transparent border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Seleziona</option>
-                <option value="XS">XS</option>
-                <option value="S">S</option>
-                <option value="M">M</option>
-                <option value="L">L</option>
-                <option value="XL">XL</option>
-                <option value="XXL">XXL</option>
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <button
-                type="submit"
-                className="px-6 py-2 rounded-lg bg-green-500 hover:bg-green-600 transition-colors font-semibold"
-              >
-                Salva Modifiche
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Email</label>
-              <div className="text-white/90">{allievo.email}</div>
-            </div>
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Ruolo</label>
-              <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                allievo.ruolo === 'insegnante' 
-                  ? 'bg-blue-500/20 text-blue-100' 
-                  : 'bg-green-500/20 text-green-100'
-              }`}>
-                {allievo.ruolo}
-              </span>
-            </div>
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Data Nascita</label>
-              <div className="text-white/90">
-                {allievo.data_nascita 
-                  ? new Date(allievo.data_nascita).toLocaleDateString('it-IT')
-                  : 'Non specificata'
-                }
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm text-white/60 mb-1">Data Iscrizione</label>
-              <div className="text-white/90">
-                {allievo.data_iscrizione 
-                  ? new Date(allievo.data_iscrizione).toLocaleDateString('it-IT')
-                  : 'Non specificata'
-                }
-              </div>
-            </div>
-            {allievo.telefono && (
-              <div>
-                <label className="block text-sm text-white/60 mb-1">Telefono</label>
-                <div className="text-white/90">{allievo.telefono}</div>
-              </div>
-            )}
-            {allievo.nome_genitore && (
-              <div>
-                <label className="block text-sm text-white/60 mb-1">Nome Genitore</label>
-                <div className="text-white/90">{allievo.nome_genitore}</div>
-              </div>
-            )}
-            {allievo.telefono_genitore && (
-              <div>
-                <label className="block text-sm text-white/60 mb-1">Telefono Genitore</label>
-                <div className="text-white/90">{allievo.telefono_genitore}</div>
-              </div>
-            )}
-            {allievo.taglia_maglietta && (
-              <div>
-                <label className="block text-sm text-white/60 mb-1">Taglia Maglietta</label>
-                <div className="text-white/90">{allievo.taglia_maglietta}</div>
-              </div>
-            )}
-            {allievo.taglia_pantaloncini && (
-              <div>
-                <label className="block text-sm text-white/60 mb-1">Taglia Pantaloncini</label>
-                <div className="text-white/90">{allievo.taglia_pantaloncini}</div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+        {/* Sezione Pagamenti */}
+        <PaymentGrid authId={profile?.auth_id} adminMode={true} />
 
-      {/* Card Corsi & Prezzi */}
-      <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-        <h3 className="text-xl font-semibold mb-4">Corsi & Prezzi</h3>
-        
-        {/* Aggiungi Corso */}
-        <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/10">
-          <h4 className="font-medium mb-3">Aggiungi Corso</h4>
-          <div className="flex gap-3">
-            <select
-              value={newCourse.corso_id}
-              onChange={(e) => setNewCourse(prev => ({ ...prev, corso_id: e.target.value }))}
-              className="flex-1 px-3 py-2 bg-transparent border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">Seleziona corso</option>
-              {availableCourses.map(corso => (
-                <option key={corso.id} value={corso.id}>{corso.nome}</option>
-              ))}
-            </select>
-            <input
-              type="number"
-              step="0.01"
-              placeholder="Prezzo €"
-              value={newCourse.prezzo}
-              onChange={(e) => setNewCourse(prev => ({ ...prev, prezzo: e.target.value }))}
-              className="w-32 px-3 py-2 bg-transparent border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <button
-              onClick={addCourse}
-              disabled={addingCourse}
-              className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 transition-colors font-semibold disabled:opacity-60"
-            >
-              {addingCourse ? 'Aggiungendo...' : 'Aggiungi'}
-            </button>
-          </div>
-        </div>
+        {/* Card Profilo Allievo */}
+        <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
+          <h2 className="text-2xl font-semibold text-white mb-6">Profilo Allievo</h2>
+          
+          {message.text && (
+            <div className={`mb-4 p-3 rounded-lg ${
+              message.type === 'success' 
+                ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
+                : 'bg-red-500/20 text-red-300 border border-red-500/30'
+            }`}>
+              {message.text}
+            </div>
+          )}
 
-        {/* Lista Corsi Attuali */}
-        {iscrizioni.length > 0 ? (
-          <div className="space-y-3">
-            {iscrizioni.map((iscrizione) => (
-              <div key={iscrizione.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Dati personali */}
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-4">Dati personali</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <h4 className="font-medium text-white/90">{iscrizione.corsi.nome}</h4>
-                  {iscrizione.corsi.descrizione && (
-                    <p className="text-sm text-white/60">{iscrizione.corsi.descrizione}</p>
-                  )}
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Nome *
+                  </label>
+                  <input
+                    type="text"
+                    name="nome"
+                    value={formData.nome}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 rounded-xl bg-white/10 border text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                      errors.nome ? 'border-red-500' : 'border-white/20'
+                    }`}
+                    placeholder="Inserisci il nome"
+                  />
+                  {errors.nome && <p className="text-red-400 text-sm mt-1">{errors.nome}</p>}
                 </div>
-                <div className="flex items-center gap-3">
+                
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Cognome *
+                  </label>
+                  <input
+                    type="text"
+                    name="cognome"
+                    value={formData.cognome}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 rounded-xl bg-white/10 border text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                      errors.cognome ? 'border-red-500' : 'border-white/20'
+                    }`}
+                    placeholder="Inserisci il cognome"
+                  />
+                  {errors.cognome && <p className="text-red-400 text-sm mt-1">{errors.cognome}</p>}
+                </div>
+                
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Email (sola lettura)
+                  </label>
+                  <input
+                    type="email"
+                    value={profile?.email || ''}
+                    readOnly
+                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 cursor-not-allowed"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Data iscrizione (sola lettura)
+                  </label>
+                  <input
+                    type="text"
+                    value={profile?.data_iscrizione ? fromISODate(profile.data_iscrizione) : ''}
+                    readOnly
+                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 cursor-not-allowed"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Data di nascita (DD/MM/YYYY)
+                  </label>
+                  <input
+                    type="text"
+                    name="data_nascita"
+                    value={formData.data_nascita}
+                    onChange={handleInputChange}
+                    placeholder="18/04/1994"
+                    pattern="\d{2}/\d{2}/\d{4}"
+                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Cellulare
+                  </label>
+                  <input
+                    type="tel"
+                    name="cellulare"
+                    value={formData.cellulare}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Inserisci il cellulare"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Dati genitori */}
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-4">Dati genitori</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Nome genitore 1
+                  </label>
+                  <input
+                    type="text"
+                    name="nome_genitore1"
+                    value={formData.nome_genitore1}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Nome del primo genitore"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Cellulare genitore 1
+                  </label>
+                  <input
+                    type="tel"
+                    name="cellulare_genitore1"
+                    value={formData.cellulare_genitore1}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Cellulare del primo genitore"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Nome genitore 2
+                  </label>
+                  <input
+                    type="text"
+                    name="nome_genitore2"
+                    value={formData.nome_genitore2}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Nome del secondo genitore"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Cellulare genitore 2
+                  </label>
+                  <input
+                    type="tel"
+                    name="cellulare_genitore2"
+                    value={formData.cellulare_genitore2}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Cellulare del secondo genitore"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Taglie */}
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-4">Taglie</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Taglia T-shirt
+                  </label>
+                  <select
+                    name="taglia_tshirt"
+                    value={formData.taglia_tshirt}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Seleziona taglia</option>
+                    <option value="XS">XS</option>
+                    <option value="S">S</option>
+                    <option value="M">M</option>
+                    <option value="L">L</option>
+                    <option value="XL">XL</option>
+                    <option value="XXL">XXL</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Taglia pantalone
+                  </label>
+                  <select
+                    name="taglia_pantalone"
+                    value={formData.taglia_pantalone}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Seleziona taglia</option>
+                    <option value="XS">XS</option>
+                    <option value="S">S</option>
+                    <option value="M">M</option>
+                    <option value="L">L</option>
+                    <option value="XL">XL</option>
+                    <option value="XXL">XXL</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Numero scarpe
+                  </label>
                   <input
                     type="number"
-                    step="0.01"
-                    value={iscrizione.prezzo || ''}
-                    onChange={(e) => updateCoursePrice(iscrizione.id, e.target.value)}
-                    className="w-24 px-2 py-1 bg-transparent border border-white/20 rounded text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    name="numero_scarpe"
+                    value={formData.numero_scarpe}
+                    onChange={handleInputChange}
+                    min="20"
+                    max="50"
+                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="es. 42"
                   />
-                  <span className="text-white/60">€</span>
-                  <button
-                    onClick={() => removeCourse(iscrizione.id)}
-                    className="px-3 py-1 rounded bg-red-500/20 text-red-100 border border-red-500/30 hover:bg-red-500/30 transition-colors text-sm"
-                  >
-                    Rimuovi
-                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-white/60 text-center py-4">
-            Nessun corso assegnato
+            </div>
+
+            {/* Sezione corsi (admin-only per editing) */}
+            {isAdmin && (
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-4">Gestione corsi (Admin)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <div key={i} className="space-y-2">
+                      <div>
+                        <label className="block text-white/80 text-sm font-medium mb-2">
+                          Corso {i}
+                        </label>
+                        <input
+                          type="text"
+                          name={`corso_${i}`}
+                          value={formData[`corso_${i}`]}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder={`Nome corso ${i}`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-white/80 text-sm font-medium mb-2">
+                          Prezzo corso {i} (€)
+                        </label>
+                        <input
+                          type="number"
+                          name={`prezzo_corso${i}`}
+                          value={formData[`prezzo_corso${i}`]}
+                          onChange={handleInputChange}
+                          step="0.01"
+                          min="0"
+                          pattern="^\d+(\.\d{1,2})?$"
+                          className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full px-6 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 transition-colors font-semibold text-white disabled:opacity-60"
+            >
+              {saving ? 'Salvando...' : 'Salva modifiche'}
+            </button>
+          </form>
+        </div>
+
+        {/* Sezione Corsi attivi (visualizzazione dinamica) */}
+        {activeCourses.length > 0 && (
+          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
+            <h2 className="text-2xl font-semibold text-white mb-6">Corsi dell'allievo</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {activeCourses.map((course) => (
+                <div key={course.numero} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                  <h3 className="text-lg font-semibold text-white mb-2">
+                    {course.corso}
+                  </h3>
+                  <p className="text-indigo-400 font-medium">
+                    Prezzo: €{course.prezzo}/mese
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
-      </div>
-
-      {/* Card Pagamenti */}
-      <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-        <h3 className="text-xl font-semibold mb-4">Pagamenti</h3>
-        <PaymentGrid authId={authId} adminMode={true} iscrizioni={iscrizioni} onPaymentUpdate={loadData} />
       </div>
     </div>
   )
 }
+
+export default AllievoDettaglio

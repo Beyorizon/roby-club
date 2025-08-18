@@ -65,85 +65,106 @@ export default function AuthProvider({ children }) {
     return data
   }
 
-  // Sign out con debug ultra-dettagliato
+  // Sign out con pulizia completa e reload forzato
   const signOut = async () => {
-    console.log('🔄 [DEBUG] Calling supabase.auth.signOut()')
-    
-    // Log configurazione Supabase
-    console.log('🔧 [DEBUG] Supabase config:', {
-      url: import.meta.env.VITE_SUPABASE_URL ? `${import.meta.env.VITE_SUPABASE_URL.slice(0, 30)}...` : 'MISSING',
-      key: import.meta.env.VITE_SUPABASE_ANON_KEY ? `${import.meta.env.VITE_SUPABASE_ANON_KEY.slice(0, 10)}...` : 'MISSING',
-      hasClient: !!supabase,
-      hasAuth: !!supabase?.auth,
-      currentSession: !!session
-    })
+    console.log('🔄 [DEBUG] Logout clicked')
     
     try {
-      // Metodo alternativo: reset manuale se signOut fallisce
-      let signOutSuccess = false
+      // 1. Esegui supabase.auth.signOut()
+      console.log('🚀 [DEBUG] Calling supabase.auth.signOut()...')
+      const { error } = await supabase.auth.signOut()
       
-      try {
-        console.log('🚀 [DEBUG] Attempting supabase.auth.signOut()...')
-        const result = await supabase.auth.signOut()
-        console.log('📋 [DEBUG] SignOut result:', result)
-        
-        if (result.error) {
-          console.error('❌ [DEBUG] SignOut returned error:', {
-            message: result.error.message,
-            status: result.error.status,
-            code: result.error.code,
-            name: result.error.name,
-            details: result.error.details
-          })
-          throw result.error
-        }
-        
-        signOutSuccess = true
-        console.log('✅ [DEBUG] Supabase signOut completed successfully')
-        
-      } catch (signOutError) {
-        console.error('💥 [DEBUG] SignOut failed with error:', {
-          message: signOutError.message,
-          name: signOutError.name,
-          status: signOutError.status,
-          code: signOutError.code,
-          stack: signOutError.stack?.slice(0, 300)
-        })
-        
-        // Fallback: reset manuale dello stato
-        console.log('🔄 [DEBUG] Attempting manual state reset as fallback...')
-        signOutSuccess = false
+      if (error) {
+        console.error('❌ [DEBUG] Supabase signOut error:', error)
+        // Continua comunque con la pulizia locale
+      } else {
+        console.log('✅ [DEBUG] Supabase signOut done')
       }
       
-      // Reset dello stato locale (sempre, anche se signOut fallisce)
+      // 2. Pulizia localStorage e IndexedDB
+      console.log('🧹 [DEBUG] Starting local storage and IndexedDB cleanup...')
+      
+      // Rimuovi token generici
+      localStorage.removeItem('supabase.auth.token')
+      
+      // Rimuovi token specifici per questo progetto Supabase
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      if (supabaseUrl) {
+        const urlPart = supabaseUrl.split('://')[1]
+        localStorage.removeItem(`sb-${urlPart}-auth-token`)
+        console.log(`🗑️ [DEBUG] Removed sb-${urlPart}-auth-token from localStorage`)
+      }
+      
+      // Rimuovi tutti i possibili token Supabase dal localStorage
+      const keysToRemove = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && (key.includes('supabase') || key.includes('sb-'))) {
+          keysToRemove.push(key)
+        }
+      }
+      
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key)
+        console.log(`🗑️ [DEBUG] Removed ${key} from localStorage`)
+      })
+      
+      // Pulizia IndexedDB
+      try {
+        if ('indexedDB' in window) {
+          await new Promise((resolve, reject) => {
+            const deleteReq = indexedDB.deleteDatabase('supabase-auth')
+            deleteReq.onsuccess = () => {
+              console.log('🗑️ [DEBUG] IndexedDB supabase-auth deleted successfully')
+              resolve()
+            }
+            deleteReq.onerror = () => {
+              console.log('⚠️ [DEBUG] IndexedDB deletion failed or database did not exist')
+              resolve() // Non bloccare il processo
+            }
+            deleteReq.onblocked = () => {
+              console.log('⚠️ [DEBUG] IndexedDB deletion blocked')
+              resolve() // Non bloccare il processo
+            }
+          })
+        }
+      } catch (dbError) {
+        console.log('⚠️ [DEBUG] IndexedDB cleanup error:', dbError.message)
+      }
+      
+      console.log('✅ [DEBUG] Local storage and IndexedDB cleared')
+      
+      // 3. Reset dello stato locale
       setIsAdmin(false)
       setUserProfile(null)
       setSession(null)
       setUser(null)
       
-      console.log('🧹 [DEBUG] Auth state cleared locally')
+      // 4. Reload forzato della pagina
+      console.log('🔄 [DEBUG] Reloading page…')
       
-      // Se signOut è fallito, forza un refresh della pagina come ultima risorsa
-      if (!signOutSuccess) {
-        console.log('🔄 [DEBUG] SignOut failed, will force page reload after navigation')
-        // Non facciamo reload qui, lo faremo dopo navigate
-      }
+      // Piccolo delay per permettere ai log di essere visualizzati
+      setTimeout(() => {
+        window.location.reload()
+      }, 100)
       
     } catch (err) {
-      console.error('💥 [DEBUG] SignOut outer catch error:', {
+      console.error('💥 [DEBUG] SignOut error:', {
         message: err.message,
         name: err.name,
         stack: err.stack?.slice(0, 200)
       })
       
-      // Anche in caso di errore totale, resettiamo lo stato locale
+      // Anche in caso di errore, esegui la pulizia locale e il reload
       setIsAdmin(false)
       setUserProfile(null)
       setSession(null)
       setUser(null)
-      console.log('🧹 [DEBUG] Auth state cleared after error')
       
-      // Non rilanciamo l'errore per permettere la navigazione
+      console.log('🔄 [DEBUG] Reloading page after error…')
+      setTimeout(() => {
+        window.location.reload()
+      }, 100)
     }
   }
 
