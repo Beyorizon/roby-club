@@ -1,54 +1,51 @@
-// Add this import at the top
-import InstallPWAButton from './InstallPWAButton';
-
-// Then add <InstallPWAButton /> somewhere in your navbar JSX
-import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthProvider'
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthProvider';
+import InstallButton from './InstallButton';
 
 function Navbar() {
-  const { session, isAdmin, userProfile, signOut } = useAuth()
-  const navigate = useNavigate()
+  const { session, isAdmin, userProfile, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const handleLogout = async () => {
-    console.log('🔴 [DEBUG] Logout button clicked')
+    console.log('🔴 [DEBUG] Logout button clicked');
     
     try {
-      await signOut()
-      console.log('🏠 [DEBUG] Navigating to /')
-      navigate('/', { replace: true })
+      await signOut();
+      console.log('🏠 [DEBUG] Navigating to /');
+      navigate('/', { replace: true });
       
       // Se dopo 2 secondi siamo ancora loggati, forza un reload
       setTimeout(() => {
         if (session) {
-          console.log('🔄 [DEBUG] Session still exists, forcing page reload')
-          window.location.href = '/'
+          console.log('🔄 [DEBUG] Session still exists, forcing page reload');
+          window.location.href = '/';
         }
-      }, 2000)
+      }, 2000);
       
     } catch (err) {
-      console.error('❌ [DEBUG] Logout error:', err)
+      console.error('❌ [DEBUG] Logout error:', err);
       // Anche in caso di errore, prova a navigare e fare reload
-      console.log('🏠 [DEBUG] Navigating to / (after error)')
-      navigate('/', { replace: true })
+      console.log('🏠 [DEBUG] Navigating to / (after error)');
+      navigate('/', { replace: true });
       
       // Forza reload dopo errore
       setTimeout(() => {
-        console.log('🔄 [DEBUG] Forcing page reload after error')
-        window.location.href = '/'
-      }, 1000)
+        console.log('🔄 [DEBUG] Forcing page reload after error');
+        window.location.href = '/';
+      }, 1000);
     }
-  }
+  };
 
   // Ottieni il nome utente dal profilo
   const getUserName = () => {
     if (userProfile?.nome) {
-      return userProfile.nome
+      return userProfile.nome;
     }
     if (isAdmin) {
-      return 'Admin'
+      return 'Admin';
     }
-    return 'Utente'
-  }
+    return 'Utente';
+  };
 
   return (
     <nav className="sticky top-0 z-50 bg-white/10 backdrop-blur-md border-b border-white/20">
@@ -58,7 +55,7 @@ function Navbar() {
             <Link to="/" className="text-white text-lg font-bold truncate">
               Roby Club
             </Link>
-            <InstallPWAButton />
+            <InstallButton />
           </div>
           
           <div className="flex items-center space-x-2 sm:space-x-4">
@@ -112,7 +109,7 @@ function Navbar() {
         </div>
       </div>
     </nav>
-  )
+  );
 }
 
-export default Navbar
+export default Navbar;
