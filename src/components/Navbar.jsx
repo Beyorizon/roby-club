@@ -1,3 +1,7 @@
+// Add this import at the top
+import InstallPWAButton from './InstallPWAButton';
+
+// Then add <InstallPWAButton /> somewhere in your navbar JSX
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthProvider'
 

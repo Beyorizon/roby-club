@@ -10,6 +10,10 @@ const MESI_ACCADEMICO = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto'
 ]
 
+// Add this import at the top
+import InstallPWAButton from '../components/InstallPWAButton';
+
+// Then add <InstallPWAButton /> somewhere in your dashboard
 function Dashboard() {
   const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
