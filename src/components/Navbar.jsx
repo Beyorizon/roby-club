@@ -54,10 +54,11 @@ function Navbar() {
     <nav className="sticky top-0 z-50 bg-white/10 backdrop-blur-md border-b border-white/20">
       <div className="container mx-auto px-4 max-w-6xl">
         <div className="flex justify-between items-center h-14">
-          <div className="flex items-center">
+          <div className="flex items-center space-x-3">
             <Link to="/" className="text-white text-lg font-bold truncate">
               Roby Club
             </Link>
+            <InstallPWAButton />
           </div>
           
           <div className="flex items-center space-x-2 sm:space-x-4">
