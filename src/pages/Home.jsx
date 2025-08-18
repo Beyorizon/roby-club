@@ -1,30 +1,37 @@
-import { Link } from 'react-router-dom';
+import React from 'react'
+import { Link } from 'react-router-dom'
+import NewsFeed from '../components/NewsFeed.jsx'
 
 export default function Home() {
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="text-center max-w-4xl mx-auto">
-        <h1 className="text-6xl md:text-8xl font-bold mb-6 bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent">
-          Roby Club
+    <main className="min-h-screen flex items-center justify-center px-4">
+      <div className="max-w-2xl text-center space-y-8">
+        <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">
+          Benvenuto in Roby Club
         </h1>
-        <p className="text-xl md:text-2xl text-white/80 mb-12 max-w-2xl mx-auto">
-          Il tuo club esclusivo per eventi, networking e opportunità uniche
+        <p className="text-white/70">
+          Gestisci corsi, eventi, annunci e pagamenti in un’unica piattaforma.
         </p>
-        <div className="flex flex-col sm:flex-row gap-6 justify-center">
-          <Link 
-            to="/login" 
-            className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-2xl"
+
+        <div className="text-left">
+          <NewsFeed />
+        </div>
+
+        <div className="flex items-center justify-center gap-4">
+          <Link
+            to="/login"
+            className="px-6 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 transition-colors font-semibold"
           >
             Accedi
           </Link>
-          <Link 
-            to="/signup" 
-            className="px-8 py-4 backdrop-blur-lg bg-white/10 border border-white/20 hover:bg-white/20 text-white font-semibold rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-2xl"
+          <Link
+            to="/signup"
+            className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 transition-colors font-semibold"
           >
             Registrati
           </Link>
         </div>
       </div>
-    </div>
-  );
+    </main>
+  )
 }

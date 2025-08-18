@@ -1,83 +1,119 @@
-import { useState } from 'react';
-import CardGlass from '../components/CardGlass';
+import React, { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import supabase from '../lib/supabase.js'
+import CardGlass from '../components/CardGlass.jsx'
 
 export default function Signup() {
-  const [formData, setFormData] = useState({
+  const navigate = useNavigate()
+  const [form, setForm] = useState({
     nome: '',
     cognome: '',
     email: '',
     password: ''
-  });
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [info, setInfo] = useState(null)
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
+  const onChange = (e) => {
+    const { name, value } = e.target
+    setForm((f) => ({ ...f, [name]: value }))
+  }
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log('Signup:', formData);
-  };
+  const onSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setInfo(null)
+
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: {
+        data: {
+          nome: form.nome,
+          cognome: form.cognome
+        }
+      }
+    })
+    
+    if (signUpError) {
+      setError(`Errore durante la registrazione: ${signUpError.message}`)
+      setLoading(false)
+      return
+    }
+
+    // Nessun insert manuale in `utenti`: lo fa il trigger in Supabase
+    if (data?.user) {
+      setInfo('Registrazione completata con successo. Controlla la tua email per la conferma.')
+    }
+
+    setLoading(false)
+    setTimeout(() => {
+      navigate('/login')
+    }, 800)
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <CardGlass className="w-full max-w-md p-8">
-        <h2 className="text-3xl font-bold text-white text-center mb-8">
-          Registrati
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
+    <main className="min-h-screen flex items-center justify-center p-4">
+      <CardGlass className="w-full max-w-md p-6">
+        <h2 className="text-2xl font-bold mb-6">Crea un account</h2>
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="text"
               name="nome"
               placeholder="Nome"
-              value={formData.nome}
-              onChange={handleChange}
-              className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+              value={form.nome}
+              onChange={onChange}
+              className="w-full px-4 py-3 bg-transparent border border-white/20 rounded-xl placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               required
             />
             <input
               type="text"
               name="cognome"
               placeholder="Cognome"
-              value={formData.cognome}
-              onChange={handleChange}
-              className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+              value={form.cognome}
+              onChange={onChange}
+              className="w-full px-4 py-3 bg-transparent border border-white/20 rounded-xl placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               required
             />
           </div>
-          <div>
-            <input
-              type="email"
-              name="email"
-              placeholder="Email"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
-              required
-            />
-          </div>
-          <div>
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              value={formData.password}
-              onChange={handleChange}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
-              required
-            />
-          </div>
+          <input
+            type="email"
+            name="email"
+            placeholder="Email"
+            value={form.email}
+            onChange={onChange}
+            className="w-full px-4 py-3 bg-transparent border border-white/20 rounded-xl placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            required
+          />
+          <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            value={form.password}
+            onChange={onChange}
+            className="w-full px-4 py-3 bg-transparent border border-white/20 rounded-xl placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            required
+          />
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {info && <p className="text-emerald-400 text-sm">{info}</p>}
           <button
             type="submit"
-            className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg"
+            disabled={loading}
+            className="w-full px-4 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-600 transition-colors font-semibold disabled:opacity-60"
           >
-            Registrati
+            {loading ? 'Registrazione...' : 'Registrati'}
           </button>
         </form>
+        <p className="mt-4 text-sm text-white/70">
+          Hai già un account?{' '}
+          <Link className="text-indigo-400 hover:underline" to="/login">
+            Accedi
+          </Link>
+        </p>
       </CardGlass>
-    </div>
-  );
+    </main>
+  )
 }
