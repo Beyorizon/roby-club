@@ -2,7 +2,13 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthProvider'
 import { supabase } from '../lib/supabase.js'
-import PaymentGrid from '../components/PaymentGrid'
+// Removed PaymentGrid import
+
+// Array dei mesi accademici (da AllievoDettaglio.jsx)
+const MESI_ACCADEMICO = [
+  'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
+  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto'
+]
 
 function Dashboard() {
   const { user, isAdmin } = useAuth()
@@ -35,6 +41,12 @@ function Dashboard() {
     prezzo_corso5: ''
   })
   
+  // Nuovi state per corsi e pagamenti
+  const [corsi, setCorsi] = useState([])
+  const [pagamenti, setPagamenti] = useState([])
+  const [loadingPagamenti, setLoadingPagamenti] = useState(false)
+  const [selectedAnno, setSelectedAnno] = useState(new Date().getFullYear())
+  
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
@@ -60,23 +72,160 @@ function Dashboard() {
     return d; // già in formato DD/MM/YYYY
   };
 
-  // Funzione per ottenere corsi attivi (non null)
+  // Calcola il totale dei mesi pagati usando gli importi effettivi filtrati per anno
+  const calcolaTotale = () => {
+    const pagamentiAnno = pagamenti.filter(
+      p => p.anno === selectedAnno || p.anno === selectedAnno + 1 || !p.anno // Include pagamenti senza anno
+    )
+    return pagamentiAnno
+      .filter(p => p.stato === 'pagato')
+      .reduce((total, p) => total + (Number(p.importo) || 0), 0)
+  }
+
+  // Ottiene lo stato di un mese specifico per l'anno selezionato
+  const getStatoMese = (mese) => {
+    const pagamentiAnno = pagamenti.filter(
+      p => p.anno === selectedAnno || p.anno === selectedAnno + 1 || !p.anno // Include pagamenti senza anno
+    )
+    const pagamento = pagamentiAnno.find(p => p.mese === mese)
+    if (!pagamento) return 'non_dovuto'
+    
+    // Logica auto-scadenza: se oggi > 10 del mese e stato è non_pagato
+    if (pagamento.stato === 'non_pagato') {
+      const oggi = new Date()
+      const meseIndex = MESI_ACCADEMICO.indexOf(mese)
+
+      // Calcola l'indice accademico del mese corrente
+      const monthMap = [4,5,6,7,8,9,10,11,0,1,2,3] 
+      // Significa: Gen=4, Feb=5, Mar=6, Apr=7, Mag=8, Giu=9, Lug=10, Ago=11, Set=0, Ott=1, Nov=2, Dic=3
+      const currentMeseIndex = monthMap[oggi.getMonth()]
+
+      if ((currentMeseIndex === meseIndex && oggi.getDate() > 10) || currentMeseIndex > meseIndex) {
+        return 'scaduto'
+      }
+    }
+    
+    return pagamento?.stato || 'non_dovuto'
+  }
+
+  // Ottiene il testo da mostrare per ogni mese per l'anno selezionato
+  const getTestoMese = (mese) => {
+    const pagamentiAnno = pagamenti.filter(
+      p => p.anno === selectedAnno || p.anno === selectedAnno + 1 || !p.anno // Include pagamenti senza anno
+    )
+    const pagamento = pagamentiAnno.find(p => p.mese === mese)
+    if (!pagamento) return 'Non dovuto'
+    
+    const stato = getStatoMese(mese)
+    
+    switch (stato) {
+      case 'pagato': 
+        return pagamento.importo ? `Pagato (€${pagamento.importo})` : 'Pagato'
+      case 'non_pagato': 
+        return 'Non pagato'
+      case 'scaduto':
+        return 'Non pagato / Scaduto'
+      case 'non_dovuto':
+        return 'Non dovuto'
+      default:
+        return 'Non dovuto'
+    }
+  }
+
+  // Ottiene il colore del bottone in base allo stato
+  const getColoreMese = (stato) => {
+    switch (stato) {
+      case 'pagato': return 'bg-green-500 text-white'
+      case 'non_pagato': return 'bg-yellow-500 text-white'
+      case 'scaduto': return 'bg-red-500 text-white'
+      case 'non_dovuto': return 'bg-gray-500 text-white'
+      default: return 'bg-gray-500 text-white'
+    }
+  }
+
+  // Funzione per ottenere corsi attivi (con nomi invece di ID)
   const getActiveCourses = () => {
     if (!profile) return [];
     const courses = [];
     for (let i = 1; i <= 5; i++) {
-      const corso = profile[`corso_${i}`];
+      const corsoId = profile[`corso_${i}`];
       const prezzo = profile[`prezzo_corso${i}`];
-      if (corso) {
-        courses.push({
-          numero: i,
-          corso,
-          prezzo: prezzo ? parseFloat(prezzo).toFixed(2) : '0.00'
-        });
+      if (corsoId) {
+        // Trova il corso nell'array corsi
+        const corso = corsi.find(c => c.id === corsoId);
+        if (corso) {
+          courses.push({
+            numero: i,
+            corso: corso.nome, // Ora mostra il nome invece dell'ID
+            prezzo: prezzo ? parseFloat(prezzo).toFixed(2) : '0.00'
+          });
+        }
       }
     }
     return courses;
   };
+
+  // Carica corsi disponibili
+  const loadCorsi = async () => {
+    try {
+      const { data: corsiData, error } = await supabase
+        .from('corsi')
+        .select('id, nome')
+        .order('nome')
+      
+      if (error) {
+        console.error('Errore caricamento corsi:', error)
+        return
+      }
+      
+      setCorsi(corsiData || [])
+    } catch (err) {
+      console.error('Errore caricamento corsi:', err)
+    }
+  }
+
+  // Carica pagamenti dell'utente
+  const loadPagamenti = async () => {
+    if (!user?.id) return
+    
+    try {
+      setLoadingPagamenti(true)
+      
+      // Prima ottieni l'ID utente dalla tabella utenti
+      const { data: userData, error: userError } = await supabase
+        .from('utenti')
+        .select('id')
+        .eq('auth_id', user.id)
+        .single()
+      
+      if (userError || !userData) {
+        console.error('Errore nel trovare l\'utente:', userError)
+        return
+      }
+      
+      const { data: pagamentiData, error } = await supabase
+        .from('pagamenti')
+        .select('*')
+        .eq('allievo_id', userData.id)
+      
+      if (error) {
+        console.error('Errore caricamento pagamenti:', error)
+        return
+      }
+      
+      // Assegna anno di default ai pagamenti che non ce l'hanno
+      const pagamentiConAnno = (pagamentiData || []).map(p => ({
+        ...p,
+        anno: p.anno || 2025 // Anno di default
+      }))
+      
+      setPagamenti(pagamentiConAnno)
+    } catch (err) {
+      console.error('Errore caricamento pagamenti:', err)
+    } finally {
+      setLoadingPagamenti(false)
+    }
+  }
 
   // Carica i dati del profilo utente
   useEffect(() => {
@@ -159,7 +308,12 @@ function Dashboard() {
     return () => { isMounted = false }
   }, [user?.id])
 
-  // Funzione handleSubmit per il salvataggio profilo
+  // Carica corsi e pagamenti quando il componente si monta
+  useEffect(() => {
+    loadCorsi()
+    loadPagamenti()
+  }, [user?.id])
+
   // Funzione handleSubmit per il salvataggio profilo
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -202,12 +356,12 @@ function Dashboard() {
           if (typeof value === 'number') return Math.floor(value)
           if (typeof value === 'string') {
             const trimmed = value.trim()
-            return trimmed && !isNaN(trimmed) ? parseInt(trimmed) : null
+            return trimmed && !isNaN(trimmed) ? parseInt(trimmed, 10) : null
           }
           return null
         }
         
-        // Per campi stringa (default)
+        // Per campi stringa
         if (typeof value === 'string') {
           const trimmed = value.trim()
           return trimmed || null
@@ -216,53 +370,41 @@ function Dashboard() {
         return value
       }
       
-      // Prepara updates solo con campi modificabili dall'utente
-      const updates = {}
-      
-      // Campi modificabili dall'utente (stringhe)
-      const stringFields = [
-        'nome', 'cognome', 'cellulare',
-        'nome_genitore1', 'cellulare_genitore1',
-        'nome_genitore2', 'cellulare_genitore2',
-        'taglia_tshirt', 'taglia_pantalone'
-      ]
-      
-      stringFields.forEach(field => {
-        updates[field] = cleanValue(formData[field], 'string')
-      })
-      
-      // Campo numerico speciale
-      updates.numero_scarpe = cleanValue(formData.numero_scarpe, 'integer')
-      
-      // Data nascita con conversione
-      updates.data_nascita = toISODate(formData.data_nascita)
-      
-      // Campi admin-only (solo se admin)
-      if (isAdmin) {
-        for (let i = 1; i <= 5; i++) {
-          const corsoField = `corso_${i}`
-          const prezzoField = `prezzo_corso${i}`
-          
-          updates[corsoField] = cleanValue(formData[corsoField], 'string')
-          updates[prezzoField] = cleanValue(formData[prezzoField], 'number')
-        }
+      const updateData = {
+        nome: cleanValue(formData.nome) || null,
+        cognome: cleanValue(formData.cognome) || null,
+        data_nascita: formData.data_nascita ? toISODate(formData.data_nascita) : null,
+        cellulare: cleanValue(formData.cellulare) || null,
+        nome_genitore1: cleanValue(formData.nome_genitore1) || null,
+        cellulare_genitore1: cleanValue(formData.cellulare_genitore1) || null,
+        nome_genitore2: cleanValue(formData.nome_genitore2) || null,
+        cellulare_genitore2: cleanValue(formData.cellulare_genitore2) || null,
+        taglia_tshirt: cleanValue(formData.taglia_tshirt) || null,
+        taglia_pantalone: cleanValue(formData.taglia_pantalone) || null,
+        numero_scarpe: cleanValue(formData.numero_scarpe, 'integer') || null,
+        // Campi corso (solo admin)
+        ...(isAdmin && {
+          corso_1: cleanValue(formData.corso_1) || null,
+          corso_2: cleanValue(formData.corso_2) || null,
+          corso_3: cleanValue(formData.corso_3) || null,
+          corso_4: cleanValue(formData.corso_4) || null,
+          corso_5: cleanValue(formData.corso_5) || null,
+          prezzo_corso1: cleanValue(formData.prezzo_corso1, 'number') || null,
+          prezzo_corso2: cleanValue(formData.prezzo_corso2, 'number') || null,
+          prezzo_corso3: cleanValue(formData.prezzo_corso3, 'number') || null,
+          prezzo_corso4: cleanValue(formData.prezzo_corso4, 'number') || null,
+          prezzo_corso5: cleanValue(formData.prezzo_corso5, 'number') || null
+        })
       }
       
-      // Esegui update
       const { error } = await supabase
         .from('utenti')
-        .update(updates)
-        .eq('id', profile.id)
+        .update(updateData)
+        .eq('auth_id', user.id)
       
       if (error) {
-        console.error('Errore update profilo:', error?.message, error)
-        
-        // Gestione errori specifici RLS
-        if (error.code === 'PGRST116' || error.message?.includes('RLS')) {
-          setMessage({ type: 'error', text: 'Permesso negato: alcuni campi non sono modificabili' })
-        } else {
-          setMessage({ type: 'error', text: `Errore nell'aggiornamento: ${error.message}` })
-        }
+        console.error('[supabase] update error:', error)
+        setMessage({ type: 'error', text: 'Errore nel salvataggio del profilo' })
         return
       }
       
@@ -272,27 +414,21 @@ function Dashboard() {
       const { data: updatedProfile } = await supabase
         .from('utenti')
         .select('*')
-        .eq('id', profile.id)
+        .eq('auth_id', user.id)
         .single()
       
       if (updatedProfile) {
         setProfile(updatedProfile)
       }
       
-      // Pulisci il messaggio dopo 3 secondi
-      setTimeout(() => {
-        setMessage({ type: '', text: '' })
-      }, 3000)
-      
-    } catch (e) {
-      console.error('Update profilo fallito:', e?.message, e)
-      setMessage({ type: 'error', text: 'Errore nell\'aggiornamento del profilo' })
+    } catch (err) {
+      console.error('[dashboard] save error:', err)
+      setMessage({ type: 'error', text: 'Errore nel salvataggio del profilo' })
     } finally {
       setSaving(false)
     }
   }
 
-  // Gestione cambio input
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
@@ -337,8 +473,74 @@ function Dashboard() {
           </p>
         </div>
 
-        {/* Sezione Pagamenti */}
-        <PaymentGrid authId={user?.id} />
+        {/* Sezione Pagamenti - Nuova implementazione */}
+        <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
+          <h2 className="text-2xl font-semibold text-white mb-6">
+            Pagamenti {selectedAnno}/{selectedAnno + 1}
+          </h2>
+          
+          <div className="mb-4">
+            <p className="text-white text-lg">
+              Totale: <span className="text-green-400 font-bold">€{calcolaTotale().toFixed(2)}</span>
+            </p>
+          </div>
+          
+          {/* Filtro anni */}
+          <div className="mb-6 flex gap-2 flex-wrap">
+            {[2025, 2026].map(a => (
+              <button
+                key={a}
+                onClick={() => setSelectedAnno(a)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  selectedAnno === a 
+                    ? 'bg-indigo-500 text-white' 
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                {a}/{a+1}
+              </button>
+            ))}
+          </div>
+          
+          {loadingPagamenti ? (
+            <div className="text-white text-center">Caricamento pagamenti...</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {MESI_ACCADEMICO.map((mese, index) => {
+                const stato = getStatoMese(mese)
+                const testoMese = getTestoMese(mese)
+                
+                return (
+                  <div
+                    key={mese}
+                    className={`px-4 py-3 rounded-xl font-medium ${
+                      getColoreMese(stato)
+                    }`}
+                  >
+                    <div className="text-sm">{mese}</div>
+                    <div className="text-xs mt-1">{testoMese}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          
+          {/* Legenda */}
+          <div className="mt-6 flex flex-wrap gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-green-500 rounded"></div>
+              <span className="text-white">Pagato</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-red-500 rounded"></div>
+              <span className="text-white">Non pagato / Scaduto</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-gray-500 rounded"></div>
+              <span className="text-white">Non dovuto</span>
+            </div>
+          </div>
+        </div>
 
         {/* Card Il mio profilo */}
         <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
@@ -535,24 +737,25 @@ function Dashboard() {
                   </select>
                 </div>
                 
-                <div>
-                  <label className="block text-white/80 text-sm font-medium mb-2">
-                    Taglia pantalone
-                  </label>
-                  <select
-                    name="taglia_pantalone"
-                    value={formData.taglia_pantalone}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">Seleziona taglia</option>
-                    <option value="XS">XS</option>
-                    <option value="S">S</option>
-                    <option value="M">M</option>
-                    <option value="L">L</option>
-                    <option value="XL">XL</option>
-                    <option value="XXL">XXL</option>
-                  </select>
+                <div> 
+                  <label className="block text-white/80 text-sm font-medium mb-2"> 
+                  Taglia pantalone 
+                  </label> 
+                <select 
+                name="taglia_pantalone" 
+                value={formData.taglia_pantalone} 
+                onChange={handleInputChange} 
+                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" > 
+                <option value="">
+                  Seleziona taglia
+                  </option> 
+                <option value="XS">XS</option> 
+                <option value="S">S</option> 
+                <option value="M">M</option> 
+                <option value="L">L</option> 
+                <option value="XL">XL</option> 
+                <option value="XXL">XXL</option> 
+                </select> 
                 </div>
                 
                 <div>

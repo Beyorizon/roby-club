@@ -8,9 +8,9 @@ import PaymentGrid from '../../components/PaymentGrid'
 // const COSTO_MENSILE = 30 // RIMUOVI QUESTA RIGA
 
 // Array dei mesi per il 2025
-const MESI_2025 = [
-  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+const MESI_ACCADEMICO = [
+  'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
+  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto'
 ]
 
 function AllievoDettaglio() {
@@ -49,6 +49,7 @@ function AllievoDettaglio() {
   const [pagamenti, setPagamenti] = useState([])
   const [loadingPagamenti, setLoadingPagamenti] = useState(false)
   const [defaultImporto, setDefaultImporto] = useState(30)
+  const [selectedAnno, setSelectedAnno] = useState(new Date().getFullYear())
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -133,7 +134,13 @@ function AllievoDettaglio() {
         return
       }
       
-      setPagamenti(data || [])
+      // Assegna anno di default ai pagamenti che non ce l'hanno
+      const pagamentiConAnno = (data || []).map(p => ({
+        ...p,
+        anno: p.anno || 2025 // Anno di default se mancante
+      }))
+      
+      setPagamenti(pagamentiConAnno)
     } catch (err) {
       console.error('Errore caricamento pagamenti:', err)
     } finally {
@@ -144,7 +151,8 @@ function AllievoDettaglio() {
   // Gestisce il click sui bottoni dei mesi
   const handleMeseClick = async (mese) => {
     try {
-      const pagamento = pagamenti.find(p => p.mese === mese)
+      // Cerca pagamento per mese E anno selezionato
+      const pagamento = pagamenti.find(p => p.mese === mese && (p.anno === selectedAnno || p.anno === selectedAnno + 1))
       let nuovoStato
       
       if (!pagamento || pagamento.stato !== 'pagato') {
@@ -170,12 +178,13 @@ function AllievoDettaglio() {
         
         if (error) throw error
       } else {
-        // Insert nuovo
+        // Insert nuovo - INCLUDE ANNO
         const { error } = await supabase
           .from("pagamenti")
           .insert({
             allievo_id: id,
             mese: mese,
+            anno: selectedAnno, // AGGIUNTO CAMPO ANNO
             stato: nuovoStato,
             importo: nuovoImporto,
           })
@@ -185,11 +194,12 @@ function AllievoDettaglio() {
       
       // Aggiorna stato locale
       setPagamenti(prev => {
-        const index = prev.findIndex(p => p.mese === mese)
+        const index = prev.findIndex(p => p.mese === mese && (p.anno === selectedAnno || p.anno === selectedAnno + 1))
         const nuovoPagamento = { 
           id: pagamento?.id, 
           allievo_id: id, 
           mese, 
+          anno: selectedAnno, // AGGIUNTO CAMPO ANNO
           stato: nuovoStato, 
           importo: nuovoImporto 
         }
@@ -205,49 +215,52 @@ function AllievoDettaglio() {
     }
   }
 
-  // Calcola il totale dei mesi pagati usando gli importi effettivi
+  // Calcola il totale dei mesi pagati usando gli importi effettivi filtrati per anno
   const calcolaTotale = () => {
-    return pagamenti
+    const pagamentiAnno = pagamenti.filter(
+      p => p.anno === selectedAnno || p.anno === selectedAnno + 1 || !p.anno // Include pagamenti senza anno
+    )
+    return pagamentiAnno
       .filter(p => p.stato === 'pagato')
       .reduce((total, p) => total + (Number(p.importo) || 0), 0)
   }
 
-  // Ottiene lo stato di un mese specifico
+  // Ottiene lo stato di un mese specifico per l'anno selezionato
   const getStatoMese = (mese) => {
-    const pagamento = pagamenti.find(p => p.mese === mese)
+    const pagamentiAnno = pagamenti.filter(
+      p => p.anno === selectedAnno || p.anno === selectedAnno + 1 || !p.anno // Include pagamenti senza anno
+    )
+    const pagamento = pagamentiAnno.find(p => p.mese === mese)
     if (!pagamento) return 'non_dovuto'
     
     // Logica auto-scadenza: se oggi > 10 del mese e stato è non_pagato
-    if (pagamento.stato === 'non_pagato') {
-      const oggi = new Date()
-      const meseIndex = MESI_2025.indexOf(mese)
-      
-      // Se siamo nel mese corrente e dopo il 10, o in un mese successivo
-      if ((oggi.getMonth() === meseIndex && oggi.getDate() > 10) || oggi.getMonth() > meseIndex) {
-        return 'scaduto'
-      }
-    }
+if (pagamento.stato === 'non_pagato') {
+  const oggi = new Date()
+  const meseIndex = MESI_ACCADEMICO.indexOf(mese)
+
+  // Calcola l'indice accademico del mese corrente
+  const monthMap = [4,5,6,7,8,9,10,11,0,1,2,3] 
+  // Significa: Gen=4, Feb=5, Mar=6, Apr=7, Mag=8, Giu=9, Lug=10, Ago=11, Set=0, Ott=1, Nov=2, Dic=3
+  const currentMeseIndex = monthMap[oggi.getMonth()]
+
+  if ((currentMeseIndex === meseIndex && oggi.getDate() > 10) || currentMeseIndex > meseIndex) {
+    return 'scaduto'
+  }
+}
+
     
     return pagamento?.stato || 'non_dovuto'
   }
 
-  // Ottiene il colore del bottone in base allo stato
-  const getColoreMese = (stato) => {
-    switch (stato) {
-      case 'pagato': return 'bg-green-500 hover:bg-green-600 text-white'
-      case 'non_pagato': return 'bg-yellow-500 hover:bg-yellow-600 text-white'
-      case 'scaduto': return 'bg-red-500 hover:bg-red-600 text-white'
-      case 'non_dovuto': return 'bg-gray-500 hover:bg-gray-600 text-white'
-      default: return 'bg-gray-500 hover:bg-gray-600 text-white'
-    }
-  }
-
-  // Ottiene il testo da mostrare per ogni mese
+  // Ottiene il testo da mostrare per ogni mese per l'anno selezionato
   const getTestoMese = (mese) => {
-    const pagamento = pagamenti.find(p => p.mese === mese)
+    const pagamentiAnno = pagamenti.filter(
+      p => p.anno === selectedAnno || p.anno === selectedAnno + 1 || !p.anno // Include pagamenti senza anno
+    )
+    const pagamento = pagamentiAnno.find(p => p.mese === mese)
     if (!pagamento) return 'Non dovuto'
     
-    const stato = getStatoMese(mese) // Usa la funzione che include la logica di scadenza
+    const stato = getStatoMese(mese)
     
     switch (stato) {
       case 'pagato': 
@@ -263,6 +276,16 @@ function AllievoDettaglio() {
     }
   }
 
+  // Ottiene il colore del bottone in base allo stato
+  const getColoreMese = (stato) => {
+    switch (stato) {
+      case 'pagato': return 'bg-green-500 hover:bg-green-600 text-white'
+      case 'non_pagato': return 'bg-yellow-500 hover:bg-yellow-600 text-white'
+      case 'scaduto': return 'bg-red-500 hover:bg-red-600 text-white'
+      case 'non_dovuto': return 'bg-gray-500 hover:bg-gray-600 text-white'
+      default: return 'bg-gray-500 hover:bg-gray-600 text-white'
+    }
+  }
   // Carica i dati del profilo utente tramite id
   useEffect(() => {
     let isMounted = true
@@ -383,17 +406,48 @@ function AllievoDettaglio() {
       
       // Prepara i dati da aggiornare
       const updateData = {
-        nome: formData.nome,
-        cognome: formData.cognome,
-        data_nascita: toISODate(formData.data_nascita),
-        cellulare: formData.cellulare,
-        nome_genitore1: formData.nome_genitore1,
-        nome_genitore2: formData.nome_genitore2,
-        email: formData.email || null,
-        corso_1: formData.corso_1 || null,
-        corso_2: formData.corso_2 || null,
-        corso_3: formData.corso_3 || null
-      }
+  // stringhe
+  nome: formData.nome || null,
+  cognome: formData.cognome || null,
+  data_nascita: toISODate(formData.data_nascita) || null,
+  cellulare: formData.cellulare || null,
+  nome_genitore1: formData.nome_genitore1 || null,
+  cellulare_genitore1: formData.cellulare_genitore1 || null,
+  nome_genitore2: formData.nome_genitore2 || null,
+  cellulare_genitore2: formData.cellulare_genitore2 || null,
+  taglia_tshirt: formData.taglia_tshirt || null,
+  taglia_pantalone: formData.taglia_pantalone || null,
+
+  // numeri interi
+  numero_scarpe: formData.numero_scarpe
+    ? parseInt(formData.numero_scarpe, 10)
+    : null,
+
+  // corsi (se in DB sono int / uuid → qui resta stringa o null)
+  corso_1: formData.corso_1 || null,
+  corso_2: formData.corso_2 || null,
+  corso_3: formData.corso_3 || null,
+  corso_4: formData.corso_4 || null,
+  corso_5: formData.corso_5 || null,
+
+  // prezzi corsi (numerici, possono avere decimali)
+  prezzo_corso1: formData.prezzo_corso1
+    ? parseFloat(formData.prezzo_corso1)
+    : null,
+  prezzo_corso2: formData.prezzo_corso2
+    ? parseFloat(formData.prezzo_corso2)
+    : null,
+  prezzo_corso3: formData.prezzo_corso3
+    ? parseFloat(formData.prezzo_corso3)
+    : null,
+  prezzo_corso4: formData.prezzo_corso4
+    ? parseFloat(formData.prezzo_corso4)
+    : null,
+  prezzo_corso5: formData.prezzo_corso5
+    ? parseFloat(formData.prezzo_corso5)
+    : null,
+};
+
       
       // Aggiorna la tabella utenti su Supabase
       const { error } = await supabase
@@ -474,13 +528,28 @@ function AllievoDettaglio() {
           <PaymentGrid authId={profile.auth_id} isAdminView={true} />
         )} */}
 
-        {/* Sezione Pagamenti 2025 - MANTIENI SOLO QUESTA */}
+        {/* Sezione Pagamenti con filtro anno */}
         <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-semibold text-white">Pagamenti 2025</h2>
+            <h2 className="text-2xl font-semibold text-white">Pagamenti {selectedAnno}/{selectedAnno + 1}</h2>
             <div className="text-xl font-bold text-green-400">
               Totale: €{calcolaTotale()}
             </div>
+          </div>
+          
+          {/* Filtri anno scolastico */}
+          <div className="flex gap-2 mb-4">
+            {[2025, 2026].map(a => (
+              <button
+                key={a}
+                onClick={() => setSelectedAnno(a)}
+                className={`px-3 py-1 rounded ${
+                  selectedAnno === a ? "bg-green-600 text-white" : "bg-gray-200 text-black"
+                }`}
+              >
+                {a}/{a+1}
+              </button>
+            ))}
           </div>
           
           {/* Input per importo mensile di default */}
@@ -501,7 +570,7 @@ function AllievoDettaglio() {
             <div className="text-white text-center">Caricamento pagamenti...</div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {MESI_2025.map((mese, index) => {
+              {MESI_ACCADEMICO.map((mese, index) => {
                 const stato = getStatoMese(mese)
                 const testoMese = getTestoMese(mese)
                 
