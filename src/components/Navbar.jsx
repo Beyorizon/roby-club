@@ -233,10 +233,10 @@ function Navbar() {
 
       {/* Bottom Navigation Bar - Riorganizzata */}
       <nav 
-        className="fixed bottom-0 left-0 right-0 z-30 bg-white/10 backdrop-blur-md border-t border-white/20"
+        className="fixed bottom-0 left-0 right-0 z-30 bg-white/10 backdrop-blur-md border-t border-white/20 flex justify-around"
         style={{
-          paddingBottom: 'env(safe-area-inset-bottom)',
-          height: 'calc(4rem + env(safe-area-inset-bottom))'
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)', // 👈 aria extra sotto
+    height: 'calc(4.5rem + env(safe-area-inset-bottom))'      // 👈 più alta
         }}
       >
         <div className="flex items-center justify-between h-16 px-4">

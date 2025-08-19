@@ -28,7 +28,7 @@ export default function Carousel({ items, renderItem }) {
         }}
         onSlideChange={(swiper) => setActiveIndex(swiper.activeIndex)}
         modules={[EffectCoverflow]}
-        className="mySwiper"
+        className="mySwiper mx-6 px-6"
       >
         {items.map((item, index) => (
           <SwiperSlide

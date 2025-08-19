@@ -76,7 +76,7 @@ export default function AnnunciCarousel({ items = [], renderItem }) {
         ref={containerRef}
         onScroll={handleManualScroll}
         className="
-          flex gap-6 overflow-x-auto scroll-smooth px-4
+          flex gap-6 overflow-x-auto scroll-smooth -mx-6 px-6
           snap-x snap-mandatory
           scrollbar-hide
         "
