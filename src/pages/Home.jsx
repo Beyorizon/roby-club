@@ -5,6 +5,7 @@ import NewsFeed from '../components/NewsFeed';
 import supabase from '../lib/supabase';
 import Slider from '../components/Slider';
 import SliderCard from '../components/SliderCard';
+import Carousel from "../components/Carousel";
 
 // Array locale per i saggi YouTube (TODO: spostare su Supabase in futuro)
 const SAGGI_YOUTUBE = [
@@ -236,10 +237,8 @@ function Home() {
         <section id="saggi" className="scroll-mt-8">
           <h2 className="text-3xl font-bold text-white mb-8 text-center">I nostri saggi</h2>
 
-          <Slider
-            items={SAGGI_YOUTUBE}
-            autoPlayInterval={5000}
-            ariaLabel="Slider saggi"
+          <Carousel 
+            items={SAGGI_YOUTUBE} 
             renderItem={(saggio) => (
               <a
                 href={saggio.url}
@@ -247,11 +246,18 @@ function Home() {
                 rel="noopener noreferrer"
                 className="block focus:outline-none focus:ring-2 focus:ring-indigo-400 rounded-xl"
               >
-                <SliderCard
-                  title={saggio.titolo}
-                  imageSrc={saggio.thumbnail}
-                  imageAlt={saggio.titolo}
-                />
+                <div className="bg-white/10 rounded-2xl overflow-hidden shadow-lg">
+                  <img
+                    src={saggio.thumbnail}
+                    alt={saggio.titolo}
+                    className="w-full h-48 object-cover"
+                  />
+                  <div className="p-4 text-center">
+                    <h3 className="text-white font-semibold text-sm">
+                      {saggio.titolo}
+                    </h3>
+                  </div>
+                </div>
               </a>
             )}
           />
