@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 
-// Componente Card integrato
+// Componente Card integrato per gli annunci
+
 function AnnouncementCard({ title, subtitle, body, imageSrc, imageAlt, footer, itemId }) {
   const navigate = useNavigate();
 
