@@ -93,6 +93,7 @@ export default function AnnunciCarousel({ items = [] }) {
       intervalRef.current = setInterval(() => {
         setCurrentIndex(prev => {
           const nextIndex = (prev + 1) % length;
+          const prevIndex = (prev - 1 + length) % length;
           scrollToIndex(nextIndex);
           return nextIndex;
         });

@@ -1,24 +1,20 @@
-import { useState } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { EffectCoverflow } from "swiper/modules";
-
 import "swiper/css";
 import "swiper/css/effect-coverflow";
-
+import { useState } from "react";
 
 export default function Carousel({ items, renderItem }) {
-  const [activeIndex, setActiveIndex] = useState(
-    Math.floor(items.length / 10) // parte dal centro
-  )
+  const [activeIndex, setActiveIndex] = useState(0);
 
   return (
-    <div className="w-full">
+    <>
       <Swiper
         effect="coverflow"
         grabCursor={true}
         centeredSlides={true}
         slidesPerView="auto"
-        initialSlide={activeIndex}
+        loop={true} // 👈 loop infinito
         coverflowEffect={{
           rotate: 50,
           stretch: 0,
@@ -26,9 +22,11 @@ export default function Carousel({ items, renderItem }) {
           modifier: 1,
           slideShadows: true,
         }}
-        onSlideChange={(swiper) => setActiveIndex(swiper.activeIndex)}
+
         modules={[EffectCoverflow]}
         className="mySwiper !overflow-visible"
+        onSlideChange={(swiper) => setActiveIndex(swiper.realIndex)} // 👈 usa realIndex invece di activeIndex
+        initialSlide={0} // 👈 parti sempre dalla prima slide
       >
         {items.map((item, index) => (
           <SwiperSlide
@@ -39,22 +37,6 @@ export default function Carousel({ items, renderItem }) {
           </SwiperSlide>
         ))}
       </Swiper>
-
-      {/* Paginazione custom sotto lo slider */}
-      <div className="flex justify-center mt-6 space-x-5">
-        {items.map((_, index) => (
-          <button
-            key={index}
-            className={`w-2 h-2 rounded-full transition-all ${
-              index === activeIndex ? "bg-white scale-125" : "bg-white/40"
-            }`}
-            onClick={() => {
-              document.querySelector(".mySwiper").swiper.slideTo(index);
-            }}
-          />
-        ))}
-      </div>
-    </div>
+    </>
   );
 }
-

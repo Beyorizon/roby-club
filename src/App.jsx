@@ -21,10 +21,6 @@ import Riepilogo from './pages/admin/Riepilogo.jsx'
 
 import './App.css'
 
-// Add this import at the top
-import InstallPWAButton from './components/InstallPWAButton';
-
-// Then add <InstallPWAButton /> in your main layout
 function App() {
   return (
     <BrowserRouter>
