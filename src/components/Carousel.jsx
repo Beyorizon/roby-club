@@ -28,12 +28,12 @@ export default function Carousel({ items, renderItem }) {
         }}
         onSlideChange={(swiper) => setActiveIndex(swiper.activeIndex)}
         modules={[EffectCoverflow]}
-        className="mySwiper mx-6 px-6"
+        className="mySwiper !overflow-visible"
       >
         {items.map((item, index) => (
           <SwiperSlide
             key={index}
-            className="!w-auto"
+            className="max-w-[280px] md:max-w-[320px]"
           >
             {renderItem(item)}
           </SwiperSlide>
@@ -41,11 +41,11 @@ export default function Carousel({ items, renderItem }) {
       </Swiper>
 
       {/* Paginazione custom sotto lo slider */}
-      <div className="flex justify-center mt-6 space-x-2">
+      <div className="flex justify-center mt-6 space-x-5">
         {items.map((_, index) => (
           <button
             key={index}
-            className={`w-3 h-3 rounded-full transition-all ${
+            className={`w-2 h-2 rounded-full transition-all ${
               index === activeIndex ? "bg-white scale-125" : "bg-white/40"
             }`}
             onClick={() => {

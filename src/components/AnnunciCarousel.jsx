@@ -21,22 +21,6 @@ export default function AnnunciCarousel({ items = [], renderItem }) {
     });
   };
 
-  // Autoplay: ogni 3 secondi vai alla prossima card (loop)
-  useEffect(() => {
-    if (!length || length <= 1) return;
-
-    const id = setInterval(() => {
-      setCurrentIndex((prev) => {
-        const next = (prev + 1) % length;
-        // Scroll alla card successiva
-        scrollToIndex(next);
-        return next;
-      });
-    }, 3000);
-
-    return () => clearInterval(id);
-  }, [length]);
-
   // Riesegue il centramento su resize
   useEffect(() => {
     const onResize = () => scrollToIndex(currentIndex, "auto");
@@ -112,5 +96,6 @@ export default function AnnunciCarousel({ items = [], renderItem }) {
         ))}
       </div>
     </div>
+    
   );
 }
