@@ -31,7 +31,7 @@ function App() {
       <AuthProvider>
         <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 overflow-x-hidden">
           <Navbar />
-          <main className="pt-4">
+          <main className="pt-0">
             <Routes>
               {/* Route pubbliche */}
               <Route path="/" element={<Home />} />
