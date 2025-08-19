@@ -371,3 +371,28 @@ function Home() {
 }
 
 export default Home;
+
+// Nella sezione "Ultimi annunci" sostituire con:
+<section className="mb-12">
+  <h2 className="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+    Ultimi annunci
+  </h2>
+  {loadingNotizie ? (
+    <div className="text-center text-white/70">Caricamento annunci...</div>
+  ) : ultimeNotizie.length === 0 ? (
+    <div className="text-center text-white/70">Nessun annuncio disponibile</div>
+  ) : (
+    <AnnunciCarousel items={ultimeNotizie} />
+  )}
+  <div className="text-center mt-6">
+    <Link
+      to="/notizie"
+      className="inline-flex items-center px-6 py-3 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 hover:text-indigo-200 rounded-full transition-all duration-200 border border-indigo-400/30 hover:border-indigo-300/50"
+    >
+      Vedi tutti gli annunci
+      <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+      </svg>
+    </Link>
+  </div>
+</section>
