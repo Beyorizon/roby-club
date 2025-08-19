@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthProvider';
 import NewsFeed from '../components/NewsFeed';
 import supabase from '../lib/supabase';
+import Slider from '../components/Slider';
+import SliderCard from '../components/SliderCard';
 
 // Array locale per i saggi YouTube (TODO: spostare su Supabase in futuro)
 const SAGGI_YOUTUBE = [
@@ -96,7 +98,7 @@ function Home() {
     loadLezioniOggi();
   }, []);
 
-  // Carica ultime 5 notizie pubblicate da Supabase (modificato da 3 a 5)
+  // Carica ultime 3 notizie pubblicate da Supabase
   useEffect(() => {
     const loadUltimeNotizie = async () => {
       try {
@@ -105,7 +107,7 @@ function Home() {
           .select('id, titolo, contenuto, created_at')
           .eq('published', true)
           .order('created_at', { ascending: false })
-          .limit(5) // Cambiato da 3 a 5
+          .limit(5)
         if (error) throw error
         setUltimeNotizie(data || [])
       } catch (err) {
@@ -198,7 +200,7 @@ function Home() {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8 space-y-16 pb-24">
         
-        {/* Sezione Ultime Novità con Slider */}
+        {/* Sezione Ultime Novità */}
         <section id="novita" className="scroll-mt-8">
           <h2 className="text-3xl font-bold text-white mb-8 text-center">Ultimi annunci</h2>
           
@@ -213,88 +215,19 @@ function Home() {
             </div>
           ) : (
             <>
-              {/* Slider Container */}
-              <div 
-                className="relative overflow-hidden rounded-xl mb-6"
-                onMouseEnter={() => setIsSliderPaused(true)}
-                onMouseLeave={() => setIsSliderPaused(false)}
-              >
-                {/* Slider Track */}
-                <div 
-                  className="flex transition-transform duration-500 ease-in-out"
-                  style={{ transform: `translateX(-${currentSlide * 100}%)` }}
-                >
-                  {ultimeNotizie.map((notizia, index) => (
-                    <div 
-                      key={notizia.id}
-                      className="w-full flex-shrink-0 px-4"
-                    >
-                      <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 border border-white/20 hover:bg-white/15 transition-all duration-300 max-w-4xl mx-auto">
-                        <h3 className="text-2xl font-semibold text-white mb-3 text-center">
-                          {notizia.titolo}
-                        </h3>
-                        <p className="text-indigo-300 text-sm mb-4 text-center">
-                          {formatDate(notizia.created_at)}
-                        </p>
-                        <p className="text-white/80 text-base leading-relaxed text-center">
-                          {notizia.contenuto}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Indicatori */}
-                <div className="flex justify-center mt-6 space-x-2">
-                  {ultimeNotizie.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentSlide(index)}
-                      className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                        index === currentSlide 
-                          ? 'bg-white scale-110' 
-                          : 'bg-white/40 hover:bg-white/60'
-                      }`}
-                      aria-label={`Vai all'annuncio ${index + 1}`}
-                    />
-                  ))}
-                </div>
-
-                {/* Frecce di navigazione */}
-                <button
-                  onClick={() => setCurrentSlide((prev) => 
-                    prev === 0 ? ultimeNotizie.length - 1 : prev - 1
-                  )}
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white p-2 rounded-full transition-all duration-300 backdrop-blur-sm"
-                  aria-label="Annuncio precedente"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                
-                <button
-                  onClick={() => setCurrentSlide((prev) => 
-                    (prev + 1) % ultimeNotizie.length
-                  )}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white p-2 rounded-full transition-all duration-300 backdrop-blur-sm"
-                  aria-label="Annuncio successivo"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-              
-              {/* Pulsante Vedi tutte */}
-              <div className="text-center">
-                <Link 
-                  to="/notizie"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors"
-                >
-                  Vedi tutti gli annunci
-                </Link>
-              </div>
+              {/* Slider Annunci */}
+              <Slider
+                items={ultimeNotizie}
+                autoPlayInterval={5000}
+                ariaLabel="Slider annunci"
+                renderItem={(notizia) => (
+                  <SliderCard
+                    title={notizia.titolo}
+                    subtitle={formatDate(notizia.created_at)}
+                    body={notizia.contenuto}
+                  />
+                )}
+              />
             </>
           )}
         </section>
@@ -302,37 +235,26 @@ function Home() {
         {/* Sezione Saggi YouTube */}
         <section id="saggi" className="scroll-mt-8">
           <h2 className="text-3xl font-bold text-white mb-8 text-center">I nostri saggi</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">
-            {SAGGI_YOUTUBE.map((saggio) => (
+
+          <Slider
+            items={SAGGI_YOUTUBE}
+            autoPlayInterval={5000}
+            ariaLabel="Slider saggi"
+            renderItem={(saggio) => (
               <a
-                key={saggio.id}
                 href={saggio.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group bg-white/10 backdrop-blur-md rounded-xl overflow-hidden border border-white/20 hover:bg-white/20 transition-all duration-300 hover:scale-105"
+                className="block focus:outline-none focus:ring-2 focus:ring-indigo-400 rounded-xl"
               >
-                <div className="aspect-video bg-gray-800 relative overflow-hidden">
-                  <img
-                    src={saggio.thumbnail}
-                    alt={saggio.titolo}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    loading="lazy"
-                  />
-                  {/* Play button overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/20 transition-colors">
-                    <svg className="w-12 h-12 text-white/80 group-hover:text-white group-hover:scale-110 transition-all" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                  </div>
-                </div>
-                <div className="p-4">
-                  <h3 className="text-white text-center font-semibold text-sm line-clamp-2 group-hover:text-indigo-300 transition-colors">
-                    {saggio.titolo}
-                  </h3>
-                </div>
+                <SliderCard
+                  title={saggio.titolo}
+                  imageSrc={saggio.thumbnail}
+                  imageAlt={saggio.titolo}
+                />
               </a>
-            ))}
-          </div>
+            )}
+          />
         </section>
 
         {/* Sezione Le lezioni di oggi */}
