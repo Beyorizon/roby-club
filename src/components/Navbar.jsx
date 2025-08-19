@@ -103,50 +103,91 @@ function Navbar() {
         />
       )}
 
-      {/* Hamburger Menu Drawer - Solo se utente loggato */}
-      {session && (
-        <div className={`fixed top-0 right-0 h-full w-80 max-w-[80vw] bg-white/10 backdrop-blur-md border-l border-white/20 z-50 transform transition-transform duration-300 ${
-          isMenuOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}>
-          <div className="p-6">
-            {/* Header del menu */}
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-xl font-bold text-white">Menu</h2>
-              <button
-                onClick={() => setIsMenuOpen(false)}
-                className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <CloseIcon />
-              </button>
-            </div>
-
-            {/* Voci del menu */}
-            <nav className="space-y-4">
-              {/* Dashboard */}
-              <Link
-                to={isAdmin ? "/admin" : "/dashboard"}
-                onClick={() => setIsMenuOpen(false)}
-                className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <DashboardIcon />
-                <span className="font-medium">
-                  {isAdmin ? 'Admin' : 'Dashboard'}
-                </span>
-              </Link>
-
-              {/* Orari */}
-              <button
-                onClick={() => scrollToSection('orari')}
-                className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
-              >
-                <ClockIcon />
-                <span className="font-medium">Orari</span>
-              </button>
-            </nav>
+      {/* Hamburger Menu Drawer - Sempre accessibile */}
+      <div className={`fixed top-0 right-0 h-full w-80 max-w-[80vw] bg-white/10 backdrop-blur-md border-l border-white/20 z-50 transform transition-transform duration-300 ${
+        isMenuOpen ? 'translate-x-0' : 'translate-x-full'
+      }`}>
+        <div className="p-6">
+          {/* Header del menu */}
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-xl font-bold text-white">Menu</h2>
+            <button
+              onClick={() => setIsMenuOpen(false)}
+              className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <CloseIcon />
+            </button>
           </div>
-        </div>
-      )}
 
+          {/* Voci del menu */}
+          <nav className="space-y-4">
+            {/* Contenuto condizionale basato su login status */}
+            {session ? (
+              // Menu per utenti loggati
+              <>
+                {/* Dashboard */}
+                <Link
+                  to={isAdmin ? "/admin" : "/dashboard"}
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <DashboardIcon />
+                  <span className="font-medium">
+                    {isAdmin ? 'Admin' : 'Dashboard'}
+                  </span>
+                </Link>
+
+                {/* Logout */}
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
+                >
+                  <LogoutIcon />
+                  <span className="font-medium">Logout</span>
+                </button>
+              </>
+            ) : (
+              // Menu per utenti non loggati
+              <>
+                {/* Home */}
+                <Link
+                  to="/"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <LogoIcon />
+                  <span className="font-medium">Home</span>
+                </Link>
+
+                {/* Login */}
+                <Link
+                  to="/login"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <LoginIcon />
+                  <span className="font-medium">Accedi</span>
+                </Link>
+
+                {/* Info/About */}
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    scrollToSection('footer');
+                  }}
+                  className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
+                >
+                  <NewsIcon />
+                  <span className="font-medium">Info</span>
+                </button>
+              </>
+            )}
+          </nav>
+        </div>
+      </div>
       {/* Bottom Navigation Bar */}
       <nav 
         className="fixed bottom-0 left-0 right-0 z-30 bg-white/10 backdrop-blur-md border-t border-white/20"
@@ -157,29 +198,19 @@ function Navbar() {
       >
         <div className="flex items-center justify-between h-16 px-4">
           
-          {/* 1. Accedi/Logout */}
-          {!session ? (
-            <Link
-              to="/login"
-              className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
-                isActive('/login') 
-                  ? 'text-white bg-white/20' 
-                  : 'text-white/70 hover:text-white hover:bg-white/10'
-              }`}
-              aria-current={isActive('/login') ? 'page' : undefined}
-            >
-              <LoginIcon />
-              <span className="text-xs mt-1 font-medium">Accedi</span>
-            </Link>
-          ) : (
-            <button
-              onClick={handleLogout}
-              className="flex flex-col items-center justify-center p-2 rounded-lg transition-colors text-white/70 hover:text-white hover:bg-white/10"
-            >
-              <LogoutIcon />
-              <span className="text-xs mt-1 font-medium">Logout</span>
-            </button>
-          )}
+          {/* 1. Orari */}
+          <Link
+            to="/orari"
+            className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+              isActive('/orari') 
+                ? 'text-white bg-white/20' 
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+            aria-current={isActive('/orari') ? 'page' : undefined}
+          >
+            <ClockIcon />
+            <span className="text-xs mt-1 font-medium">Orari</span>
+          </Link>
 
           {/* 2. Novità */}
           <Link

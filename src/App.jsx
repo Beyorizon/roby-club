@@ -9,6 +9,8 @@ import Login from './pages/Login.jsx'
 import AdminLogin from './pages/AdminLogin.jsx'
 import Signup from './pages/Signup.jsx'
 import Dashboard from './pages/Dashboard.jsx'
+import Orari from './pages/Orari.jsx'
+
 
 // Admin Layout e Pagine
 import AdminLayout from './pages/admin/AdminLayout.jsx'
@@ -36,6 +38,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/orari" element={<Orari />} />
               
               {/* Dashboard per utenti autenticati */}
               <Route 
