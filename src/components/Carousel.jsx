@@ -8,8 +8,8 @@ import "swiper/css/effect-coverflow";
 
 export default function Carousel({ items, renderItem }) {
   const [activeIndex, setActiveIndex] = useState(
-    Math.floor(items.length / 2) // parte dal centro
-  );
+    Math.floor(items.length / 10) // parte dal centro
+  )
 
   return (
     <div className="w-full">

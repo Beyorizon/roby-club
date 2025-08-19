@@ -60,7 +60,7 @@ export default function AnnunciCarousel({ items = [], renderItem }) {
         ref={containerRef}
         onScroll={handleManualScroll}
         className="
-          flex gap-6 overflow-x-auto scroll-smooth -mx-6 px-6
+          flex gap-6 overflow-x-auto scroll-smooth -mx-6 px-20
           snap-x snap-mandatory
           scrollbar-hide
         "
@@ -85,9 +85,9 @@ export default function AnnunciCarousel({ items = [], renderItem }) {
           >
             <div
               className="
-                w-[280px] h-[280px]
-                md:w-[320px] md:h-[280px]
-                lg:w-[360px] lg:h-[280px]
+                w-[280px] h-[150px]
+                md:w-[320px] md:h-[150px]
+                lg:w-[360px] lg:h-[150px]
               "
             >
               {renderItem(item)}
