@@ -66,7 +66,7 @@ export default function Notizie() {
                 <p className="text-indigo-300 text-sm mb-4">
                   {formatDate(notizia.created_at)}
                 </p>
-                <div className="text-white/90 leading-relaxed whitespace-pre-wrap">
+                <div className="text-white/90 leading-relaxed whitespace-pre-wrap break-words">
                   {notizia.contenuto}
                 </div>
               </div>

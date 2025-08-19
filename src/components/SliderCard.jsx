@@ -10,7 +10,7 @@ function SliderCard({ title, subtitle, body, imageSrc, imageAlt, footer, isUnifo
     : body;
 
   const cardClasses = isUniform 
-    ? "bg-white/10 backdrop-blur-md rounded-xl overflow-hidden border-0 hover:bg-white/15 transition-all duration-300 h-[150px] w-full flex flex-col"
+    ? "bg-white/10 backdrop-blur-md rounded-xl overflow-hidden border border-white/20 hover:bg-white/15 transition-all duration-300 h-[150px] w-full flex flex-col"
     : "bg-white/10 backdrop-blur-md rounded-xl p-0 overflow-hidden border border-white/20 hover:bg-white/15 transition-all duration-300 max-w-4xl mx-auto";
 
   return (
@@ -37,7 +37,7 @@ function SliderCard({ title, subtitle, body, imageSrc, imageAlt, footer, isUnifo
         )}
         {body && (
           <div className={isUniform ? "flex-1 flex flex-col justify-between" : ""}>
-            <p className={`text-white/80 leading-relaxed text-center ${
+            <p className={`text-white/80 leading-relaxed text-center break-words ${
               isUniform 
                 ? 'text-sm flex-1 overflow-hidden' + (isExpanded ? '' : ' line-clamp-3')
                 : 'text-base'

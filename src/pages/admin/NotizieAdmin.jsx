@@ -226,20 +226,13 @@ export default function NotizieAdmin() {
                       <h3 className="font-semibold text-white text-lg">{annuncio.titolo}</h3>
                       <p className="text-white/60 text-sm">{timeAgo(annuncio.created_at)}</p>
                     </div>
-                    <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                      annuncio.published 
-                        ? 'bg-green-500/20 text-green-100 border border-green-500/30'
-                        : 'bg-yellow-500/20 text-yellow-100 border border-yellow-500/30'
-                    }`}>
-                      {annuncio.published ? 'Pubblicato' : 'Bozza'}
-                    </span>
                   </div>
                   
                   <p className="text-white/80 mb-4 line-clamp-3">
                     {annuncio.contenuto}
                   </p>
                   
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap justify-between items-center gap-2 mt-2 w-full">
                     <button
                       onClick={() => togglePublishAnnuncio(annuncio)}
                       className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
@@ -248,22 +241,29 @@ export default function NotizieAdmin() {
                           : 'bg-green-500/20 text-green-100 border border-green-500/30 hover:bg-green-500/30'
                       }`}
                     >
-                      {annuncio.published ? 'Depubblica' : 'Pubblica'}
+                      {annuncio.published ? 'B' : 'P'}
                     </button>
                     
                     <button
                       onClick={() => startEditAnnuncio(annuncio)}
                       className="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-100 border border-blue-500/30 hover:bg-blue-500/30 text-sm font-medium transition-colors"
                     >
-                      Modifica
+                      M
                     </button>
                     
                     <button
                       onClick={() => deleteAnnuncio(annuncio.id)}
                       className="px-3 py-1 rounded-lg bg-red-500/20 text-red-100 border border-red-500/30 hover:bg-red-500/30 text-sm font-medium transition-colors"
                     >
-                      Elimina
+                      X
                     </button>
+                    <span className={`px-2 py-1 rounded-lg text-sm font-medium ${
+                      annuncio.published 
+                        ? 'bg-green-500/20 text-green-100 border border-green-500/30'
+                        : 'bg-yellow-500/20 text-yellow-100 border border-yellow-500/30'
+                    }`}>
+                      {annuncio.published ? 'Pubblicato' : 'Bozza'}
+                    </span>
                   </div>
                 </div>
               ))}
