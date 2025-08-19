@@ -57,12 +57,6 @@ function Navbar() {
     </svg>
   );
 
-  const LogoutIcon = () => (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-    </svg>
-  );
-
   const LogoIcon = () => (
     <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
       <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
@@ -93,6 +87,18 @@ function Navbar() {
     </svg>
   );
 
+  const InfoIcon = () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+
+  const BookIcon = () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+    </svg>
+  );
+
   return (
     <>
       {/* Overlay per chiudere menu */}
@@ -103,7 +109,7 @@ function Navbar() {
         />
       )}
 
-      {/* Hamburger Menu Drawer - Sempre accessibile */}
+      {/* Hamburger Menu Drawer - Uguale per tutti */}
       <div className={`fixed top-0 right-0 h-full w-80 max-w-[80vw] bg-white/10 backdrop-blur-md border-l border-white/20 z-50 transform transition-transform duration-300 ${
         isMenuOpen ? 'translate-x-0' : 'translate-x-full'
       }`}>
@@ -119,11 +125,72 @@ function Navbar() {
             </button>
           </div>
 
-          {/* Voci del menu */}
+          {/* Voci del menu - Uguale per tutti */}
           <nav className="space-y-4">
-            {/* Contenuto condizionale basato su login status */}
+            {/* Home */}
+            <Link
+              to="/"
+              onClick={() => setIsMenuOpen(false)}
+              className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <LogoIcon />
+              <span className="font-medium">Home</span>
+            </Link>
+
+            {/* Chi siamo */}
+            <Link
+              to="/chi-siamo"
+              onClick={() => setIsMenuOpen(false)}
+              className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <InfoIcon />
+              <span className="font-medium">Chi siamo</span>
+            </Link>
+
+            {/* Annunci */}
+            <Link
+              to="/notizie"
+              onClick={() => setIsMenuOpen(false)}
+              className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <NewsIcon />
+              <span className="font-medium">Annunci</span>
+            </Link>
+
+            {/* Orario delle lezioni */}
+            <Link
+              to="/orari"
+              onClick={() => setIsMenuOpen(false)}
+              className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <ClockIcon />
+              <span className="font-medium">Orario delle lezioni</span>
+            </Link>
+
+            {/* Saggi */}
+            <button
+              onClick={() => {
+                setIsMenuOpen(false);
+                scrollToSection('saggi');
+              }}
+              className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
+            >
+              <VideoIcon />
+              <span className="font-medium">Saggi</span>
+            </button>
+
+            {/* Regolamento */}
+            <Link
+              to="/regolamento"
+              onClick={() => setIsMenuOpen(false)}
+              className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <BookIcon />
+              <span className="font-medium">Regolamento</span>
+            </Link>
+
+            {/* Accedi/Dashboard/Logout */}
             {session ? (
-              // Menu per utenti loggati
               <>
                 {/* Dashboard */}
                 <Link
@@ -145,50 +212,26 @@ function Navbar() {
                   }}
                   className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
                 >
-                  <LogoutIcon />
+                  <LoginIcon />
                   <span className="font-medium">Logout</span>
                 </button>
               </>
             ) : (
-              // Menu per utenti non loggati
-              <>
-                {/* Home */}
-                <Link
-                  to="/"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-                >
-                  <LogoIcon />
-                  <span className="font-medium">Home</span>
-                </Link>
-
-                {/* Login */}
-                <Link
-                  to="/login"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-                >
-                  <LoginIcon />
-                  <span className="font-medium">Accedi</span>
-                </Link>
-
-                {/* Info/About */}
-                <button
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    scrollToSection('footer');
-                  }}
-                  className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
-                >
-                  <NewsIcon />
-                  <span className="font-medium">Info</span>
-                </button>
-              </>
+              /* Login */
+              <Link
+                to="/login"
+                onClick={() => setIsMenuOpen(false)}
+                className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <LoginIcon />
+                <span className="font-medium">Accedi</span>
+              </Link>
             )}
           </nav>
         </div>
       </div>
-      {/* Bottom Navigation Bar */}
+
+      {/* Bottom Navigation Bar - Riorganizzata */}
       <nav 
         className="fixed bottom-0 left-0 right-0 z-30 bg-white/10 backdrop-blur-md border-t border-white/20"
         style={{
@@ -212,7 +255,7 @@ function Navbar() {
             <span className="text-xs mt-1 font-medium">Orari</span>
           </Link>
 
-          {/* 2. Novità */}
+          {/* 2. Annunci */}
           <Link
             to="/notizie"
             className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
@@ -223,30 +266,45 @@ function Navbar() {
             aria-current={isActive('/notizie') ? 'page' : undefined}
           >
             <NewsIcon />
-            <span className="text-xs mt-1 font-medium">Novità</span>
+            <span className="text-xs mt-1 font-medium">Annunci</span>
           </Link>
 
-         {/* 3. Logo al centro */}
-<Link
-  to="/"
-  className="flex flex-col items-center justify-center p-3 rounded-full transition-colors text-white"
->
-  <img src={Logo} alt="Logo" className="h-8 w-8 md:h-12 md:w-12" />
-</Link>
-
-          {/* 4. Saggi */}
+          {/* 3. Logo al centro */}
           <Link
-            to="/saggi"
-            className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
-              isActive('/saggi') 
-                ? 'text-white bg-white/20' 
-                : 'text-white/70 hover:text-white hover:bg-white/10'
-            }`}
-            aria-current={isActive('/saggi') ? 'page' : undefined}
+            to="/"
+            className="flex flex-col items-center justify-center p-3 rounded-full transition-colors text-white"
           >
-            <VideoIcon />
-            <span className="text-xs mt-1 font-medium">Saggi</span>
+            <img src={Logo} alt="Logo" className="h-8 w-8 md:h-12 md:w-12" />
           </Link>
+
+          {/* 4. Accedi/Dashboard */}
+          {session ? (
+            <Link
+              to={isAdmin ? "/admin" : "/dashboard"}
+              className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                isActive(isAdmin ? '/admin' : '/dashboard') 
+                  ? 'text-white bg-white/20' 
+                  : 'text-white/70 hover:text-white hover:bg-white/10'
+              }`}
+              aria-current={isActive(isAdmin ? '/admin' : '/dashboard') ? 'page' : undefined}
+            >
+              <DashboardIcon />
+              <span className="text-xs mt-1 font-medium">Dashboard</span>
+            </Link>
+          ) : (
+            <Link
+              to="/login"
+              className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+                isActive('/login') 
+                  ? 'text-white bg-white/20' 
+                  : 'text-white/70 hover:text-white hover:bg-white/10'
+              }`}
+              aria-current={isActive('/login') ? 'page' : undefined}
+            >
+              <LoginIcon />
+              <span className="text-xs mt-1 font-medium">Accedi</span>
+            </Link>
+          )}
 
           {/* 5. Menu hamburger */}
           <button

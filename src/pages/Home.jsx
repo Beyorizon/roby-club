@@ -65,6 +65,10 @@ function Home() {
   const [ultimeNotizie, setUltimeNotizie] = useState([]);
   const [loadingNotizie, setLoadingNotizie] = useState(true);
 
+  // Stati per lo slider
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isSliderPaused, setIsSliderPaused] = useState(false);
+
   // Carica lezioni del giorno corrente da Supabase
   useEffect(() => {
     const loadLezioniOggi = async () => {
@@ -92,7 +96,7 @@ function Home() {
     loadLezioniOggi();
   }, []);
 
-  // Carica ultime 3 notizie pubblicate da Supabase
+  // Carica ultime 5 notizie pubblicate da Supabase (modificato da 3 a 5)
   useEffect(() => {
     const loadUltimeNotizie = async () => {
       try {
@@ -101,7 +105,7 @@ function Home() {
           .select('id, titolo, contenuto, created_at')
           .eq('published', true)
           .order('created_at', { ascending: false })
-          .limit(3)
+          .limit(5) // Cambiato da 3 a 5
         if (error) throw error
         setUltimeNotizie(data || [])
       } catch (err) {
@@ -112,6 +116,17 @@ function Home() {
     }
     loadUltimeNotizie()
   }, [])
+
+  // Slider automatico ogni 5 secondi
+  useEffect(() => {
+    if (ultimeNotizie.length === 0 || isSliderPaused) return;
+
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % ultimeNotizie.length);
+    }, 5000); // 5 secondi
+
+    return () => clearInterval(interval);
+  }, [ultimeNotizie.length, isSliderPaused]);
 
   const [orariCorsi, setOrariCorsi] = useState([]);
   const [loadingOrari, setLoadingOrari] = useState(true);
@@ -183,39 +198,92 @@ function Home() {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8 space-y-16 pb-24">
         
-        {/* Sezione Ultime Novità */}
+        {/* Sezione Ultime Novità con Slider */}
         <section id="novita" className="scroll-mt-8">
-          <h2 className="text-3xl font-bold text-white mb-8 text-center">Ultime novità</h2>
+          <h2 className="text-3xl font-bold text-white mb-8 text-center">Ultimi annunci</h2>
           
           {loadingNotizie ? (
             <div className="text-center py-8">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-4"></div>
-              <p className="text-white/70">Caricamento notizie...</p>
+              <p className="text-white/70">Caricamento annunci...</p>
             </div>
           ) : ultimeNotizie.length === 0 ? (
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 text-center">
-              <p className="text-white/70">Nessuna notizia disponibile al momento.</p>
+              <p className="text-white/70">Nessun annuncio disponibile al momento.</p>
             </div>
           ) : (
             <>
-              {/* Slider delle notizie */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                {ultimeNotizie.map((notizia) => (
-                  <div 
-                    key={notizia.id}
-                    className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 hover:bg-white/15 transition-all duration-300 hover:scale-105"
-                  >
-                    <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2">
-                      {notizia.titolo}
-                    </h3>
-                    <p className="text-indigo-300 text-sm mb-3">
-                      {formatDate(notizia.created_at)}
-                    </p>
-                    <p className="text-white/80 text-sm line-clamp-3">
-                      {notizia.contenuto}
-                    </p>
-                  </div>
-                ))}
+              {/* Slider Container */}
+              <div 
+                className="relative overflow-hidden rounded-xl mb-6"
+                onMouseEnter={() => setIsSliderPaused(true)}
+                onMouseLeave={() => setIsSliderPaused(false)}
+              >
+                {/* Slider Track */}
+                <div 
+                  className="flex transition-transform duration-500 ease-in-out"
+                  style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+                >
+                  {ultimeNotizie.map((notizia, index) => (
+                    <div 
+                      key={notizia.id}
+                      className="w-full flex-shrink-0 px-4"
+                    >
+                      <div className="bg-white/10 backdrop-blur-md rounded-xl p-8 border border-white/20 hover:bg-white/15 transition-all duration-300 max-w-4xl mx-auto">
+                        <h3 className="text-2xl font-semibold text-white mb-3 text-center">
+                          {notizia.titolo}
+                        </h3>
+                        <p className="text-indigo-300 text-sm mb-4 text-center">
+                          {formatDate(notizia.created_at)}
+                        </p>
+                        <p className="text-white/80 text-base leading-relaxed text-center">
+                          {notizia.contenuto}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Indicatori */}
+                <div className="flex justify-center mt-6 space-x-2">
+                  {ultimeNotizie.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentSlide(index)}
+                      className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                        index === currentSlide 
+                          ? 'bg-white scale-110' 
+                          : 'bg-white/40 hover:bg-white/60'
+                      }`}
+                      aria-label={`Vai all'annuncio ${index + 1}`}
+                    />
+                  ))}
+                </div>
+
+                {/* Frecce di navigazione */}
+                <button
+                  onClick={() => setCurrentSlide((prev) => 
+                    prev === 0 ? ultimeNotizie.length - 1 : prev - 1
+                  )}
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white p-2 rounded-full transition-all duration-300 backdrop-blur-sm"
+                  aria-label="Annuncio precedente"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                
+                <button
+                  onClick={() => setCurrentSlide((prev) => 
+                    (prev + 1) % ultimeNotizie.length
+                  )}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white p-2 rounded-full transition-all duration-300 backdrop-blur-sm"
+                  aria-label="Annuncio successivo"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
               
               {/* Pulsante Vedi tutte */}
@@ -224,7 +292,7 @@ function Home() {
                   to="/notizie"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors"
                 >
-                  📌 Vedi tutte le notizie
+                  Vedi tutti gli annunci
                 </Link>
               </div>
             </>

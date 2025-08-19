@@ -42,7 +42,7 @@ export default function Notizie() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 p-4 pb-24">
       <div className="container mx-auto max-w-4xl">
-        <h1 className="text-3xl font-bold text-white mb-8 text-center">Notizie</h1>
+        <h1 className="text-3xl font-bold text-white mb-8 text-center">Annunci</h1>
         
         {loading ? (
           <div className="text-center py-12">
