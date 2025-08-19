@@ -99,6 +99,13 @@ function Navbar() {
     </svg>
   );
 
+  // Aggiungo l'icona Home
+  const HomeIcon = () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+    </svg>
+  );
+
   return (
     <>
       {/* Overlay per chiudere menu */}
@@ -125,16 +132,36 @@ function Navbar() {
             </button>
           </div>
 
-          {/* Voci del menu - Uguale per tutti */}
+          {/* Voci del menu - Riorganizzate */}
           <nav className="space-y-4">
-            {/* Home */}
+            {/* Home - Prima posizione */}
             <Link
               to="/"
               onClick={() => setIsMenuOpen(false)}
               className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
             >
-              <LogoIcon />
+              <HomeIcon />
               <span className="font-medium">Home</span>
+            </Link>
+
+            {/* Annunci - Seconda posizione */}
+            <Link
+              to="/notizie"
+              onClick={() => setIsMenuOpen(false)}
+              className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <NewsIcon />
+              <span className="font-medium">Annunci</span>
+            </Link>
+
+            {/* Orari - Terza posizione */}
+            <Link
+              to="/orari"
+              onClick={() => setIsMenuOpen(false)}
+              className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <ClockIcon />
+              <span className="font-medium">Orari</span>
             </Link>
 
             {/* Chi siamo */}
@@ -145,26 +172,6 @@ function Navbar() {
             >
               <InfoIcon />
               <span className="font-medium">Chi siamo</span>
-            </Link>
-
-            {/* Annunci */}
-            <Link
-              to="/notizie"
-              onClick={() => setIsMenuOpen(false)}
-              className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <NewsIcon />
-              <span className="font-medium">Annunci</span>
-            </Link>
-
-            {/* Orario delle lezioni */}
-            <Link
-              to="/orari"
-              onClick={() => setIsMenuOpen(false)}
-              className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <ClockIcon />
-              <span className="font-medium">Orario delle lezioni</span>
             </Link>
 
             {/* Saggi */}
@@ -189,10 +196,9 @@ function Navbar() {
               <span className="font-medium">Regolamento</span>
             </Link>
 
-            {/* Accedi/Dashboard/Logout */}
+            {/* Dashboard/Accedi - Quarta posizione */}
             {session ? (
               <>
-                {/* Dashboard */}
                 <Link
                   to={isAdmin ? "/admin" : "/dashboard"}
                   onClick={() => setIsMenuOpen(false)}
@@ -204,7 +210,6 @@ function Navbar() {
                   </span>
                 </Link>
 
-                {/* Logout */}
                 <button
                   onClick={() => {
                     setIsMenuOpen(false);
@@ -217,7 +222,6 @@ function Navbar() {
                 </button>
               </>
             ) : (
-              /* Login */
               <Link
                 to="/login"
                 onClick={() => setIsMenuOpen(false)}
@@ -231,28 +235,28 @@ function Navbar() {
         </div>
       </div>
 
-      {/* Bottom Navigation Bar - Riorganizzata */}
+      {/* Bottom Navigation Bar - Riorganizzata con Home al primo posto */}
       <nav 
         className="fixed bottom-0 left-0 right-0 z-30 bg-white/10 backdrop-blur-md border-t border-white/20"
         style={{
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)', // 👈 aria extra sotto
-    height: 'calc(4.5rem + env(safe-area-inset-bottom))'      // 👈 più alta
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)',
+          height: 'calc(4.5rem + env(safe-area-inset-bottom))'
         }}
       >
         <div className="flex items-center justify-between h-16 px-4">
           
-          {/* 1. Orari */}
+          {/* 1. Home - Prima posizione a sinistra */}
           <Link
-            to="/orari"
+            to="/"
             className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
-              isActive('/orari') 
+              isActive('/') 
                 ? 'text-white bg-white/20' 
                 : 'text-white/70 hover:text-white hover:bg-white/10'
             }`}
-            aria-current={isActive('/orari') ? 'page' : undefined}
+            aria-current={isActive('/') ? 'page' : undefined}
           >
-            <ClockIcon />
-            <span className="text-xs mt-1 font-medium">Orari</span>
+            <HomeIcon />
+            <span className="text-xs mt-1 font-medium">Home</span>
           </Link>
 
           {/* 2. Annunci */}
@@ -269,15 +273,21 @@ function Navbar() {
             <span className="text-xs mt-1 font-medium">Annunci</span>
           </Link>
 
-          {/* 3. Logo al centro */}
+          {/* 3. Orari */}
           <Link
-            to="/"
-            className="flex flex-col items-center justify-center p-3 rounded-full transition-colors text-white"
+            to="/orari"
+            className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
+              isActive('/orari') 
+                ? 'text-white bg-white/20' 
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+            aria-current={isActive('/orari') ? 'page' : undefined}
           >
-            <img src={Logo} alt="Logo" className="h-8 w-8 md:h-12 md:w-12" />
+            <ClockIcon />
+            <span className="text-xs mt-1 font-medium">Orari</span>
           </Link>
 
-          {/* 4. Accedi/Dashboard */}
+          {/* 4. Dashboard/Accedi */}
           {session ? (
             <Link
               to={isAdmin ? "/admin" : "/dashboard"}
@@ -306,7 +316,7 @@ function Navbar() {
             </Link>
           )}
 
-          {/* 5. Menu hamburger */}
+          {/* 5. Menu hamburger - Ultima posizione */}
           <button
             onClick={() => setIsMenuOpen(true)}
             className="flex flex-col items-center justify-center p-2 rounded-lg transition-colors text-white/70 hover:text-white hover:bg-white/10"
