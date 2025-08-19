@@ -26,11 +26,59 @@ const SAGGI_YOUTUBE = [
   },
 ];
 
-// Ordine dei giorni della settimana
-const GIORNI_SETTIMANA = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'];
+// Funzione per il giorno corrente in italiano
+const getToday = () => {
+  const giorni = [
+    "Domenica",
+    "Lunedì",
+    "Martedì",
+    "Mercoledì",
+    "Giovedì",
+    "Venerdì",
+    "Sabato",
+  ];
+  const oggi = new Date().getDay();
+  return giorni[oggi];
+};
+
+// Funzione per formattare l'orario (toglie i secondi)
+const formatTime = (timeString) => {
+  if (!timeString) return "";
+  return timeString.slice(0, 5);
+};
 
 function Home() {
   const { session } = useAuth();
+  const [lezioniOggi, setLezioniOggi] = useState([]);
+  const [loadingLezioni, setLoadingLezioni] = useState(true);
+
+  // Carica lezioni del giorno corrente da Supabase
+  useEffect(() => {
+    const loadLezioniOggi = async () => {
+      try {
+        const giornoCorrente = getToday();
+        const { data, error } = await supabase
+          .from('lezioni')
+          .select('id, giorno, orario_inizio, orario_fine, nome_corso')
+          .eq('giorno', giornoCorrente)
+          .order('orario_inizio');
+
+        if (error) {
+          console.error('Errore caricamento lezioni:', error);
+          return;
+        }
+
+        setLezioniOggi(data || []);
+      } catch (err) {
+        console.error('Errore caricamento lezioni:', err);
+      } finally {
+        setLoadingLezioni(false);
+      }
+    };
+
+    loadLezioniOggi();
+  }, []);
+
   const [orariCorsi, setOrariCorsi] = useState([]);
   const [loadingOrari, setLoadingOrari] = useState(true);
 
@@ -74,14 +122,6 @@ function Home() {
       }
     }
   }, []);
-
-  // Raggruppa corsi per giorno
-  const corsiPerGiorno = GIORNI_SETTIMANA.reduce((acc, giorno) => {
-    acc[giorno] = orariCorsi.filter(corso => 
-      corso.giorno && corso.giorno.toLowerCase() === giorno.toLowerCase()
-    );
-    return acc;
-  }, {});
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900">
@@ -153,43 +193,37 @@ function Home() {
           </div>
         </section>
 
-        {/* Sezione Orari Lezioni */}
-        <section id="orari" className="scroll-mt-8">
-          <h2 className="text-3xl font-bold text-white mb-8 text-center">Orari delle lezioni</h2>
+        {/* Sezione Le lezioni di oggi */}
+        <section id="lezioni-oggi" className="scroll-mt-8">
+          <h2 className="text-3xl font-bold text-white mb-8 text-center">Le lezioni di oggi</h2>
           
-          {loadingOrari ? (
-            <div className="text-center text-white/70">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-              <p className="mt-2">Caricamento orari...</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {GIORNI_SETTIMANA.map((giorno) => {
-                const corsiGiorno = corsiPerGiorno[giorno];
-                if (!corsiGiorno || corsiGiorno.length === 0) return null;
-                
-                return (
-                  <div key={giorno} className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-                    <h3 className="text-xl font-semibold text-white mb-4">{giorno}</h3>
-                    <div className="space-y-3">
-                      {corsiGiorno.map((corso, index) => (
-                        <div key={index} className="flex justify-between items-center py-2 px-4 bg-white/5 rounded-lg">
-                          <span className="text-white font-medium">{corso.nome}</span>
-                          <span className="text-indigo-300 font-semibold">{corso.orario}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-              
-              {orariCorsi.length === 0 && (
-                <div className="text-center text-white/70 py-8">
-                  <p>Nessun orario disponibile al momento.</p>
-                </div>
-              )}
-            </div>
-          )}
+          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 hover:bg-white/20 transition-all duration-300">
+            <h3 className="text-4xl font-semibold text-white mb-6 text-center">{getToday()}</h3>
+            
+            {loadingLezioni ? (
+              <div className="text-center text-white/70">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                <p className="mt-2">Caricamento...</p>
+              </div>
+            ) : lezioniOggi.length === 0 ? (
+              <p className="text-center text-white/70 py-4">Nessuna lezione per oggi</p>
+            ) : (
+              <div className="space-y-3">
+                {lezioniOggi.map((lezione) => (
+                  <div
+  key={lezione.id}
+  className="flex flex-col items-center text-center py-4 px-6 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+>
+  <span className="text-white font-medium text-lg">{lezione.nome_corso}</span>
+  <span className="text-indigo-300 font-semibold mt-1">
+    {formatTime(lezione.orario_inizio)} - {formatTime(lezione.orario_fine)}
+  </span>
+</div>
+
+                ))}
+              </div>
+            )}
+          </div>
         </section>
       </div>
 
