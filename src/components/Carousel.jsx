@@ -33,7 +33,7 @@ export default function Carousel({ items, renderItem }) {
         {items.map((item, index) => (
           <SwiperSlide
             key={index}
-            className="max-w-[280px] md:max-w-[320px]"
+            className="!w-auto"
           >
             {renderItem(item)}
           </SwiperSlide>
