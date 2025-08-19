@@ -6,6 +6,7 @@ import supabase from '../lib/supabase';
 import Slider from '../components/Slider';
 import SliderCard from '../components/SliderCard';
 import Carousel from "../components/Carousel";
+import AnnunciCarousel from '../components/AnnunciCarousel';
 
 // Array locale per i saggi YouTube (TODO: spostare su Supabase in futuro)
 const SAGGI_YOUTUBE = [
@@ -216,16 +217,15 @@ function Home() {
             </div>
           ) : (
             <>
-              {/* Slider Annunci */}
-              <Slider
+              {/* Annunci - CSS Scroll Snap Carousel */}
+              <AnnunciCarousel
                 items={ultimeNotizie}
-                autoPlayInterval={5000}
-                ariaLabel="Slider annunci"
                 renderItem={(notizia) => (
                   <SliderCard
                     title={notizia.titolo}
                     subtitle={formatDate(notizia.created_at)}
                     body={notizia.contenuto}
+                    isUniform={true}
                   />
                 )}
               />
