@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Autoplay } from "swiper/modules";
 import { useNavigate } from 'react-router-dom';
+
+import "swiper/css";
 
 // Componente Card integrato
 function AnnouncementCard({ title, subtitle, body, imageSrc, imageAlt, footer, itemId }) {
@@ -61,141 +65,30 @@ function AnnouncementCard({ title, subtitle, body, imageSrc, imageAlt, footer, i
 
 // Componente Carousel principale
 export default function AnnunciCarousel({ items = [] }) {
-  const containerRef = useRef(null);
-  const itemRefs = useRef([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const intervalRef = useRef(null);
+  const [activeIndex, setActiveIndex] = useState(0);
 
-  // Reset refs array quando cambia il numero di elementi
-  const length = items?.length || 0;
-  useEffect(() => {
-    itemRefs.current = new Array(length);
-    setCurrentIndex(0);
-  }, [length]);
-
-  // Funzione per scrollare solo in orizzontale
-  const scrollToIndex = (index) => {
-    const container = containerRef.current;
-    const item = itemRefs.current[index];
-    if (!container || !item) return;
-  
-    container.scrollTo({
-      left: item.offsetLeft - container.offsetLeft,
-      behavior: "smooth",
-    });
-  };
-
-  // Autoplay con 5 secondi di pausa
-  useEffect(() => {
-    if (length <= 1) return;
-
-    const startAutoplay = () => {
-      intervalRef.current = setInterval(() => {
-        setCurrentIndex(prev => {
-          const nextIndex = (prev + 1) % length;
-          const prevIndex = (prev - 1 + length) % length;
-          scrollToIndex(nextIndex);
-          return nextIndex;
-        });
-      }, 5000);
-    };
-
-    startAutoplay();
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [length]);
-
-  // Riesegue il centramento su resize
-  useEffect(() => {
-    const onResize = () => scrollToIndex(currentIndex, "auto");
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [currentIndex]);
-
-  const handleManualScroll = useMemo(() => {
-    // Sincronizza l'indice in base allo scroll
-    return () => {
-      if (!containerRef.current || !itemRefs.current.length) return;
-      const { scrollLeft, clientWidth } = containerRef.current;
-      const center = scrollLeft + clientWidth / 2;
-
-      let nearestIndex = 0;
-      let nearestDistance = Infinity;
-
-      itemRefs.current.forEach((el, idx) => {
-        if (!el) return;
-        const rect = el.getBoundingClientRect();
-        const contRect = containerRef.current.getBoundingClientRect();
-        const elCenter = rect.left - contRect.left + rect.width / 2 + containerRef.current.scrollLeft;
-        const dist = Math.abs(elCenter - center);
-        if (dist < nearestDistance) {
-          nearestDistance = dist;
-          nearestIndex = idx;
-        }
-      });
-
-      setCurrentIndex(nearestIndex);
-    };
-  }, []);
-
-  // Pausa autoplay al hover
-  const handleMouseEnter = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (length <= 1) return;
-    intervalRef.current = setInterval(() => {
-      setCurrentIndex(prev => {
-        const nextIndex = (prev + 1) % length;
-        scrollToIndex(nextIndex);
-        return nextIndex;
-      });
-    }, 3000);
-  };
+  if (!items || items.length === 0) return null;
 
   return (
-    <div 
-      className="relative"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      <div
-        ref={containerRef}
-        onScroll={handleManualScroll}
-        className="
-          flex gap-6 overflow-x-auto scroll-smooth -mx-6 px-20
-          snap-x snap-mandatory
-          scrollbar-hide
-        "
-        style={{
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
+    <div className="w-full">
+      <Swiper
+        loop={true}
+        autoplay={{
+          delay: 5000,
+          disableOnInteraction: false,
         }}
-        aria-label="Annunci carousel"
+        slidesPerView="auto"
+        centeredSlides={true}
+        onSlideChange={(swiper) => setActiveIndex(swiper.realIndex)}
+        modules={[Autoplay]}
+        className="mySwiper !overflow-visible"
       >
-        <style jsx>{`
-          div::-webkit-scrollbar {
-            display: none;
-          }
-        `}</style>
         {items.map((item, index) => (
-          <div
+          <SwiperSlide
             key={item.id || index}
-            ref={(el) => (itemRefs.current[index] = el)}
-            className="flex-none snap-center"
+            className="max-w-[280px] md:max-w-[320px] lg:max-w-[360px]"
           >
-            <div className="
-              w-[280px] h-[200px]
-              md:w-[320px] md:h-[200px]
-              lg:w-[360px] lg:h-[200px]
-            ">
+            <div className="px-3">
               <AnnouncementCard
                 title={item.titolo}
                 subtitle={new Date(item.created_at).toLocaleDateString('it-IT')}
@@ -205,9 +98,9 @@ export default function AnnunciCarousel({ items = [] }) {
                 itemId={item.id}
               />
             </div>
-          </div>
+          </SwiperSlide>
         ))}
-      </div>
+      </Swiper>
     </div>
   );
 }
