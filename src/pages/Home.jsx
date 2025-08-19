@@ -220,12 +220,15 @@ function Home() {
               {/* Annunci - CSS Scroll Snap Carousel */}
               <AnnunciCarousel
                 items={ultimeNotizie}
-                renderItem={(notizia) => (
+                renderItem={(item) => (
                   <SliderCard
-                    title={notizia.titolo}
-                    subtitle={formatDate(notizia.created_at)}
-                    body={notizia.contenuto}
+                    title={item.titolo}
+                    subtitle={new Date(item.created_at).toLocaleDateString('it-IT')}
+                    body={item.contenuto}
+                    imageSrc={item.immagine_url}
+                    imageAlt={item.titolo}
                     isUniform={true}
+                    itemId={item.id}
                   />
                 )}
               />

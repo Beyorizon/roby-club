@@ -85,7 +85,7 @@ export default function AnnunciCarousel({ items = [], renderItem }) {
           >
             <div
               className="
-                w-[280px] h-[150px]
+                w-[280px] h-[200px]
                 md:w-[320px] md:h-[150px]
                 lg:w-[360px] lg:h-[150px]
               "

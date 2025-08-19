@@ -1,16 +1,22 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-function SliderCard({ title, subtitle, body, imageSrc, imageAlt, footer, isUniform = false }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+function SliderCard({ title, subtitle, body, imageSrc, imageAlt, footer, isUniform = false, itemId }) {
+  const navigate = useNavigate();
 
-  // Controlla se il testo è troppo lungo (circa 150 caratteri per 3 righe)
-  const shouldTruncate = body && body.length > 150;
-  const displayText = shouldTruncate && !isExpanded 
-    ? body.substring(0, 150) + '...' 
-    : body;
+  // Controlla se il testo è troppo lungo (circa 100 caratteri per 2 righe)
+  const shouldShowReadMore = body && body.length > 100;
+
+  const handleReadMore = () => {
+    if (itemId) {
+      navigate(`/notizie?highlight=${itemId}`);
+    } else {
+      navigate('/notizie');
+    }
+  };
 
   const cardClasses = isUniform 
-    ? "bg-white/10 backdrop-blur-md rounded-xl overflow-hidden border border-white/20 hover:bg-white/15 transition-all duration-300 h-[150px] w-full flex flex-col"
+    ? "bg-white/10 backdrop-blur-md rounded-xl overflow-hidden border border-white/20 hover:bg-white/15 transition-all duration-300 h-[200px] w-full flex flex-col"
     : "bg-white/10 backdrop-blur-md rounded-xl p-0 overflow-hidden border border-white/20 hover:bg-white/15 transition-all duration-300 max-w-4xl mx-auto";
 
   return (
@@ -39,17 +45,17 @@ function SliderCard({ title, subtitle, body, imageSrc, imageAlt, footer, isUnifo
           <div className={isUniform ? "flex-1 flex flex-col justify-between" : ""}>
             <p className={`text-white/80 leading-relaxed text-center break-words ${
               isUniform 
-                ? 'text-sm flex-1 overflow-hidden' + (isExpanded ? '' : ' line-clamp-3')
+                ? 'text-sm flex-1 overflow-hidden line-clamp-2'
                 : 'text-base'
             }`}>
-              {displayText}
+              {body}
             </p>
-            {shouldTruncate && isUniform && (
+            {shouldShowReadMore && isUniform && (
               <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="mt-2 text-indigo-300 hover:text-indigo-200 text-xs font-medium transition-colors self-center"
+                onClick={handleReadMore}
+                className="mt-3 mx-auto px-4 py-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 hover:text-indigo-200 text-xs font-medium rounded-full transition-all duration-200 border border-indigo-400/30 hover:border-indigo-300/50"
               >
-                {isExpanded ? 'Mostra meno' : 'Leggi tutto'}
+                Leggi tutto
               </button>
             )}
           </div>
