@@ -214,13 +214,13 @@ function Navbar() {
 
           {/* 2. Novità */}
           <Link
-            to="/novita"
+            to="/notizie"
             className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
-              isActive('/novita') 
+              isActive('/notizie') 
                 ? 'text-white bg-white/20' 
                 : 'text-white/70 hover:text-white hover:bg-white/10'
             }`}
-            aria-current={isActive('/novita') ? 'page' : undefined}
+            aria-current={isActive('/notizie') ? 'page' : undefined}
           >
             <NewsIcon />
             <span className="text-xs mt-1 font-medium">Novità</span>

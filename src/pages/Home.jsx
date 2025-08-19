@@ -47,10 +47,23 @@ const formatTime = (timeString) => {
   return timeString.slice(0, 5);
 };
 
+// Funzione per formattare la data
+const formatDate = (dateString) => {
+  const date = new Date(dateString)
+  const options = { 
+    day: 'numeric', 
+    month: 'long', 
+    year: 'numeric' 
+  }
+  return date.toLocaleDateString('it-IT', options)
+}
+
 function Home() {
   const { session } = useAuth();
   const [lezioniOggi, setLezioniOggi] = useState([]);
   const [loadingLezioni, setLoadingLezioni] = useState(true);
+  const [ultimeNotizie, setUltimeNotizie] = useState([]);
+  const [loadingNotizie, setLoadingNotizie] = useState(true);
 
   // Carica lezioni del giorno corrente da Supabase
   useEffect(() => {
@@ -78,6 +91,27 @@ function Home() {
 
     loadLezioniOggi();
   }, []);
+
+  // Carica ultime 3 notizie pubblicate da Supabase
+  useEffect(() => {
+    const loadUltimeNotizie = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('annunci')
+          .select('id, titolo, contenuto, created_at')
+          .eq('published', true)
+          .order('created_at', { ascending: false })
+          .limit(3)
+        if (error) throw error
+        setUltimeNotizie(data || [])
+      } catch (err) {
+        console.error('Errore caricamento notizie:', err)
+      } finally {
+        setLoadingNotizie(false)
+      }
+    }
+    loadUltimeNotizie()
+  }, [])
 
   const [orariCorsi, setOrariCorsi] = useState([]);
   const [loadingOrari, setLoadingOrari] = useState(true);
@@ -152,15 +186,55 @@ function Home() {
         {/* Sezione Ultime Novità */}
         <section id="novita" className="scroll-mt-8">
           <h2 className="text-3xl font-bold text-white mb-8 text-center">Ultime novità</h2>
-          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-            <NewsFeed />
-          </div>
+          
+          {loadingNotizie ? (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-4"></div>
+              <p className="text-white/70">Caricamento notizie...</p>
+            </div>
+          ) : ultimeNotizie.length === 0 ? (
+            <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 text-center">
+              <p className="text-white/70">Nessuna notizia disponibile al momento.</p>
+            </div>
+          ) : (
+            <>
+              {/* Slider delle notizie */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                {ultimeNotizie.map((notizia) => (
+                  <div 
+                    key={notizia.id}
+                    className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 hover:bg-white/15 transition-all duration-300 hover:scale-105"
+                  >
+                    <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2">
+                      {notizia.titolo}
+                    </h3>
+                    <p className="text-indigo-300 text-sm mb-3">
+                      {formatDate(notizia.created_at)}
+                    </p>
+                    <p className="text-white/80 text-sm line-clamp-3">
+                      {notizia.contenuto}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Pulsante Vedi tutte */}
+              <div className="text-center">
+                <Link 
+                  to="/notizie"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors"
+                >
+                  📌 Vedi tutte le notizie
+                </Link>
+              </div>
+            </>
+          )}
         </section>
 
         {/* Sezione Saggi YouTube */}
         <section id="saggi" className="scroll-mt-8">
           <h2 className="text-3xl font-bold text-white mb-8 text-center">I nostri saggi</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">
             {SAGGI_YOUTUBE.map((saggio) => (
               <a
                 key={saggio.id}
@@ -184,7 +258,7 @@ function Home() {
                   </div>
                 </div>
                 <div className="p-4">
-                  <h3 className="text-white font-semibold text-sm line-clamp-2 group-hover:text-indigo-300 transition-colors">
+                  <h3 className="text-white text-center font-semibold text-sm line-clamp-2 group-hover:text-indigo-300 transition-colors">
                     {saggio.titolo}
                   </h3>
                 </div>

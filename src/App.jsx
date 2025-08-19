@@ -10,13 +10,13 @@ import AdminLogin from './pages/AdminLogin.jsx'
 import Signup from './pages/Signup.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Orari from './pages/Orari.jsx'
-
+import Notizie from './pages/Notizie.jsx'
 
 // Admin Layout e Pagine
 import AdminLayout from './pages/admin/AdminLayout.jsx'
 import Allievi from './pages/admin/Allievi.jsx'
 import AllievoDettaglio from './pages/admin/AllievoDettaglio.jsx'
-import Notizie from './pages/admin/Notizie.jsx'
+import NotizieAdmin from './pages/admin/NotizieAdmin.jsx'
 import Riepilogo from './pages/admin/Riepilogo.jsx'
 
 import './App.css'
@@ -39,6 +39,7 @@ function App() {
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/orari" element={<Orari />} />
+              <Route path="/notizie" element={<Notizie />} />
               
               {/* Dashboard per utenti autenticati */}
               <Route 
@@ -62,7 +63,7 @@ function App() {
                 <Route index element={<Navigate to="allievi" replace />} />
                 <Route path="allievi" element={<Allievi />} />
                 <Route path="allievi/:id" element={<AllievoDettaglio />} />
-                <Route path="notizie" element={<Notizie />} />
+                <Route path="notizie" element={<NotizieAdmin />} />
                 <Route path="riepilogo" element={<Riepilogo />} />
               </Route>
               
