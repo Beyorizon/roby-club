@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthProvider';
 import supabase from '../lib/supabase';
 import Carousel from "../components/Carousel";
 import AnnunciCarousel from '../components/AnnunciCarousel';
+import Logo from "../assets/icon_logo.svg";
 
 // Array locale per i saggi YouTube (TODO: spostare su Supabase in futuro)
 const SAGGI_YOUTUBE = [
@@ -174,27 +175,41 @@ function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
+    <div className="min-h-screen">
+      {/* Hero Section - Modificata */}
+      <section className="relative h-screen flex items-center justify-center overflow-hidden">
+        {/* Background con gradiente */}
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900"></div>
+        
+        {/* Overlay con pattern */}
         <div className="absolute inset-0 bg-black/20"></div>
-        <div className="relative container mx-auto px-4 py-16 text-center">
-          <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
-            Roby Club
-          </h1>
+        
+        {/* Contenuto principale */}
+        <div className="relative z-10 text-center px-4">
+          {/* Logo al posto della scritta "Roby Club" */}
+          <div className="mb-8">
+            <img 
+              src={Logo} 
+              alt="Roby Club" 
+              className="h-24 w-24 md:h-32 md:w-32 lg:h-40 lg:w-40 mx-auto mb-4 drop-shadow-2xl"
+            />
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-4 drop-shadow-lg">
+              Roby Club
+            </h1>
+          </div>
           
-          {!session && (
-            <div className="mt-8">
-              <Link
-                to="/login"
-                className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors"
-              >
-                Accedi al tuo account
-              </Link>
-            </div>
-          )}
+          <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-2xl mx-auto leading-relaxed">
+            Il mio posto sicuro 🏠​❤️​
+          </p>
         </div>
-      </div>
+        
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
+          <svg className="w-6 h-6 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        </div>
+      </section>
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8 space-y-16 pb-24">

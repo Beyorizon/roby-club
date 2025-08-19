@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthProvider';
-import InstallButton from './InstallButton';
+import PWAInstallBar from './PWAInstallBar';
 import supabase from '../lib/supabase';
-import Logo from "../assets/icon_logo.svg";
 
 function Navbar() {
   const { session, isAdmin } = useAuth();
@@ -108,6 +107,9 @@ function Navbar() {
 
   return (
     <>
+      {/* PWA Install Bar */}
+      <PWAInstallBar />
+
       {/* Overlay per chiudere menu */}
       {isMenuOpen && (
         <div 
@@ -326,11 +328,6 @@ function Navbar() {
           </button>
         </div>
       </nav>
-
-      {/* Install Button - posizionato in alto a destra */}
-      <div className="fixed top-4 right-4 z-20">
-        <InstallButton />
-      </div>
     </>
   );
 }
