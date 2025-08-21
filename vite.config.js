@@ -32,6 +32,8 @@ export default defineConfig(() => {
           ]
         },
         workbox: {
+          skipWaiting: true,      // 👈 forza update immediato
+    clientsClaim: true,     // 👈 prende controllo delle schede aperte
           runtimeCaching: [
             {
               urlPattern: ({ request }) => request.destination === 'document',
