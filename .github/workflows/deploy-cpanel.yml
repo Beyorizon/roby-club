@@ -33,4 +33,4 @@ jobs:
           username: ${{ secrets.CPANEL_FTP_USER }}
           password: ${{ secrets.CPANEL_FTP_PASS }}
           local-dir: ./dist/
-          server-dir: /robyclub/
+          server-dir: /public_html/robyclub/
