@@ -3,9 +3,11 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig(() => {
+  // 👇 Legge la variabile d'ambiente o usa fallback
   const basePath = process.env.VITE_BASE_PATH || '/'
 
   return {
+    base: basePath,   // 👈 fondamentale per gli asset
     plugins: [
       react(),
       VitePWA({
@@ -15,17 +17,18 @@ export default defineConfig(() => {
           name: 'Roby Club',
           short_name: 'RobyClub',
           description: 'Roby Club - Gestione corsi e pagamenti',
-          start_url: basePath,
-          scope: basePath,
+          // 👇 entrambi con basePath per funzionare in sottocartella
+          start_url: `${basePath}`,
+          scope: `${basePath}`,
           display: 'standalone',
           theme_color: '#4f46e5',
           background_color: '#000000',
           orientation: 'portrait-primary',
           icons: [
-            { src: 'icons/pwa-192.png', sizes: '192x192', type: 'image/png' },
-            { src: 'icons/pwa-512.png', sizes: '512x512', type: 'image/png' },
-            { src: 'icons/pwa-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-            { src: 'icons/pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+            { src: `${basePath}icons/pwa-192.png`, sizes: '192x192', type: 'image/png' },
+            { src: `${basePath}icons/pwa-512.png`, sizes: '512x512', type: 'image/png' },
+            { src: `${basePath}icons/pwa-maskable-192.png`, sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+            { src: `${basePath}icons/pwa-maskable-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
           ]
         },
         workbox: {
@@ -60,7 +63,6 @@ export default defineConfig(() => {
         }
       })
     ],
-    base: basePath,
     build: {
       outDir: 'dist',
       sourcemap: false,
