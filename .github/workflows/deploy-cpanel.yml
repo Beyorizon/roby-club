@@ -23,8 +23,7 @@ jobs:
 
       - name: Build project for cPanel
         run: |
-          echo "VITE_BASE_PATH=/robyclub/" >> .env
-          npm run build
+          VITE_BASE_PATH=/robyclub/ npm run build
 
       - name: Deploy via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
