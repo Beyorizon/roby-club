@@ -22,8 +22,9 @@ import Riepilogo from './pages/admin/Riepilogo.jsx'
 import './App.css'
 
 function App() {
+  const basename = import.meta.env.VITE_BASE_PATH || "/"
   return (
-    <BrowserRouter>
+<BrowserRouter basename={basename}>
       <AuthProvider>
         <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 overflow-x-hidden">
           <Navbar />
