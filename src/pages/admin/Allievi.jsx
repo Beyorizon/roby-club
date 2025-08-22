@@ -7,9 +7,11 @@ export default function Allievi() {
   const { isAdmin, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [allievi, setAllievi] = useState([])
+  const [corsi, setCorsi] = useState([])
   const [listLoading, setListLoading] = useState(true)
   const [error, setError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCorso, setSelectedCorso] = useState('')
   const [page, setPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [searchTimeout, setSearchTimeout] = useState(null)
@@ -23,8 +25,27 @@ export default function Allievi() {
     }
   }, [isAdmin, authLoading, navigate])
 
-  // Funzione per caricare gli allievi con paginazione e ricerca
-  const loadAllievi = useCallback(async (searchQuery = '', currentPage = 1) => {
+  // Carica corsi disponibili
+  const loadCorsi = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('corsi')
+        .select('id, nome')
+        .order('nome')
+      
+      if (error) {
+        console.error('Errore caricamento corsi:', error)
+        return
+      }
+      
+      setCorsi(data || [])
+    } catch (err) {
+      console.error('Errore caricamento corsi:', err)
+    }
+  }
+
+  // Funzione per caricare gli allievi con paginazione, ricerca e filtro corso
+  const loadAllievi = useCallback(async (searchQuery = '', corsoFilter = '', currentPage = 1) => {
     setListLoading(true)
     setError('')
     try {
@@ -33,15 +54,21 @@ export default function Allievi() {
 
       let query = supabase
         .from('utenti')
-        .select('id, auth_id, nome, cognome, email, ruolo, data_iscrizione', { count: 'exact' })
+        .select('id, auth_id, nome, cognome', { count: 'exact' })
         .eq('ruolo', 'allievo')
         .order('cognome')
         .order('nome')
         .range(from, to)
 
+      // Filtro per ricerca nome/cognome
       if (searchQuery.trim()) {
         const q = searchQuery.trim()
-        query = query.or(`nome.ilike.%${q}%,cognome.ilike.%${q}%,email.ilike.%${q}%`)
+        query = query.or(`nome.ilike.%${q}%,cognome.ilike.%${q}%`)
+      }
+
+      // Filtro per corso
+      if (corsoFilter) {
+        query = query.or(`corso_1.eq.${corsoFilter},corso_2.eq.${corsoFilter},corso_3.eq.${corsoFilter},corso_4.eq.${corsoFilter},corso_5.eq.${corsoFilter}`)
       }
 
       const { data, error: queryError, count } = await query
@@ -68,7 +95,8 @@ export default function Allievi() {
 
   // Caricamento iniziale
   useEffect(() => {
-    loadAllievi('', 1)
+    loadCorsi()
+    loadAllievi('', '', 1)
   }, [])
 
   // Gestione ricerca con debounce (300ms)
@@ -79,7 +107,7 @@ export default function Allievi() {
     
     const timeout = setTimeout(() => {
       setPage(1) // Reset alla prima pagina quando si cerca
-      loadAllievi(searchTerm, 1)
+      loadAllievi(searchTerm, selectedCorso, 1)
     }, 300)
     
     setSearchTimeout(timeout)
@@ -87,12 +115,12 @@ export default function Allievi() {
     return () => {
       if (timeout) clearTimeout(timeout)
     }
-  }, [searchTerm, loadAllievi])
+  }, [searchTerm, selectedCorso, loadAllievi])
 
   // Gestione cambio pagina
   const handlePageChange = (newPage) => {
     setPage(newPage)
-    loadAllievi(searchTerm, newPage)
+    loadAllievi(searchTerm, selectedCorso, newPage)
   }
 
   // Gestione clic su riga allievo
@@ -111,7 +139,7 @@ export default function Allievi() {
         <h2 className="text-2xl font-bold text-white">Gestione Allievi</h2>
         <div className="text-sm text-white/60">
           {totalCount > 0 ? (
-            searchTerm ? 
+            searchTerm || selectedCorso ? 
               `${allievi.length} risultati di ${totalCount} allievi` :
               `${startItem}-${endItem} di ${totalCount} allievi`
           ) : (
@@ -120,15 +148,27 @@ export default function Allievi() {
         </div>
       </div>
 
-      {/* Barra di ricerca */}
-      <div className="mb-6">
+      {/* Barra di ricerca e filtri */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
         <input
           type="text"
-          placeholder="Cerca per nome, cognome o email..."
+          placeholder="Cerca per nome o cognome..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full max-w-md px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         />
+        <select
+          value={selectedCorso}
+          onChange={(e) => setSelectedCorso(e.target.value)}
+          className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent min-w-[200px]"
+        >
+          <option value="">Tutti i corsi</option>
+          {corsi.map(corso => (
+            <option key={corso.id} value={corso.id}>
+              {corso.nome}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Stato di errore */}
@@ -145,17 +185,15 @@ export default function Allievi() {
         </div>
       ) : (
         <>
-          {/* Tabella allievi e resto della UI */}
+          {/* Tabella allievi semplificata */}
           {allievi.length > 0 ? (
             <div className="bg-white/5 rounded-xl overflow-hidden border border-white/10">
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="bg-white/5">
                     <tr className="text-white/70 border-b border-white/10">
-                      <th className="py-4 px-6 font-medium">Nome Completo</th>
-                      <th className="py-4 px-6 font-medium">Email</th>
-                      <th className="py-4 px-6 font-medium">Data Iscrizione</th>
-                      <th className="py-4 px-6 font-medium">Azioni</th>
+                      <th className="py-4 px-6 font-medium">Nome</th>
+                      <th className="py-4 px-6 font-medium">Cognome</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -167,31 +205,13 @@ export default function Allievi() {
                       >
                         <td className="py-4 px-6">
                           <div className="text-white font-medium">
-                            {allievo.cognome} {allievo.nome}
+                            {allievo.nome}
                           </div>
                         </td>
                         <td className="py-4 px-6">
-                          <div className="text-white/70 text-sm">
-                            {allievo.email}
+                          <div className="text-white font-medium">
+                            {allievo.cognome}
                           </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="text-white/70 text-sm">
-                            {allievo.data_iscrizione 
-                              ? new Date(allievo.data_iscrizione).toLocaleDateString('it-IT')
-                              : 'Non specificata'
-                            }
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          {/* Dentro la tabella, nella cella Azioni */}
-                          <Link
-                            to={`/admin/allievi/${allievo.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center px-3 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-100 border border-indigo-500/30 hover:bg-indigo-500/30 text-sm font-medium transition-colors"
-                          >
-                            Dettagli
-                          </Link>
                         </td>
                       </tr>
                     ))}
@@ -259,11 +279,11 @@ export default function Allievi() {
             /* Stato vuoto */
             <div className="text-center py-12">
               <div className="text-white/60 text-lg mb-2">
-                {searchTerm ? 'Nessun allievo trovato' : 'Nessun allievo presente'}
+                {searchTerm || selectedCorso ? 'Nessun allievo trovato' : 'Nessun allievo presente'}
               </div>
-              {searchTerm && (
+              {(searchTerm || selectedCorso) && (
                 <div className="text-white/40 text-sm">
-                  Prova a modificare i termini di ricerca
+                  Prova a modificare i filtri di ricerca
                 </div>
               )}
             </div>
