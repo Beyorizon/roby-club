@@ -148,23 +148,28 @@ function AllievoDettaglio() {
     }
   }
 
-  // Gestisce il click sui bottoni dei mesi
+  // Gestisce il click sui bottoni dei mesi - CICLO A TRE STATI
   const handleMeseClick = async (mese) => {
     try {
       // Cerca pagamento per mese E anno selezionato
       const pagamento = pagamenti.find(p => p.mese === mese && (p.anno === selectedAnno || p.anno === selectedAnno + 1))
       let nuovoStato
+      let nuovoImporto
       
-      if (!pagamento || pagamento.stato !== 'pagato') {
+      // CICLO A TRE STATI: non_dovuto -> scaduto -> pagato -> non_dovuto
+      if (!pagamento || pagamento.stato === 'non_dovuto') {
+        // Da grigio (non_dovuto) a rosso (scaduto)
+        nuovoStato = 'scaduto'
+        nuovoImporto = defaultImporto // Usa importo di default
+      } else if (pagamento.stato === 'scaduto' || pagamento.stato === 'non_pagato') {
+        // Da rosso (scaduto) a verde (pagato)
         nuovoStato = 'pagato'
-      } else {
-        nuovoStato = 'non_pagato'
+        nuovoImporto = pagamento?.importo || defaultImporto // Mantiene importo esistente o usa default
+      } else if (pagamento.stato === 'pagato') {
+        // Da verde (pagato) a grigio (non_dovuto)
+        nuovoStato = 'non_dovuto'
+        nuovoImporto = null // Nessun importo per non_dovuto
       }
-      
-      const nuovoImporto = 
-        nuovoStato === "pagato" 
-          ? pagamento?.importo || defaultImporto 
-          : null
       
       if (pagamento) {
         // Update esistente
@@ -184,7 +189,7 @@ function AllievoDettaglio() {
           .insert({
             allievo_id: id,
             mese: mese,
-            anno: selectedAnno, // AGGIUNTO CAMPO ANNO
+            anno: selectedAnno,
             stato: nuovoStato,
             importo: nuovoImporto,
           })
@@ -215,13 +220,16 @@ function AllievoDettaglio() {
     }
   }
 
-  // Calcola il totale dei mesi pagati usando gli importi effettivi filtrati per anno
-  const calcolaTotale = () => {
+  // Calcola il totale degli importi scaduti (solo quelli in rosso)
+  const calcolaDaSaldare = () => {
     const pagamentiAnno = pagamenti.filter(
-      p => p.anno === selectedAnno || p.anno === selectedAnno + 1 || !p.anno // Include pagamenti senza anno
+      p => p.anno === selectedAnno || p.anno === selectedAnno + 1 || !p.anno
     )
     return pagamentiAnno
-      .filter(p => p.stato === 'pagato')
+      .filter(p => {
+        const stato = getStatoMese(p.mese)
+        return stato === 'scaduto' // Solo importi scaduti (in rosso)
+      })
       .reduce((total, p) => total + (Number(p.importo) || 0), 0)
   }
 
@@ -265,10 +273,8 @@ if (pagamento.stato === 'non_pagato') {
     switch (stato) {
       case 'pagato': 
         return pagamento.importo ? `Pagato (€${pagamento.importo})` : 'Pagato'
-      case 'non_pagato': 
-        return 'Non pagato'
       case 'scaduto':
-        return 'Non pagato / Scaduto'
+        return pagamento.importo ? `Non pagato (€${pagamento.importo})` : 'Non pagato'
       case 'non_dovuto':
         return 'Non dovuto'
       default:
@@ -522,20 +528,17 @@ if (pagamento.stato === 'non_pagato') {
           </div>
         </div>
 
-        {/* RIMUOVI COMPLETAMENTE QUESTA SEZIONE PaymentGrid */}
-        {/* PaymentGrid */}
-        {/* {profile?.auth_id && (
-          <PaymentGrid authId={profile.auth_id} isAdminView={true} />
-        )} */}
-
         {/* Sezione Pagamenti con filtro anno */}
         <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-semibold text-white">Pagamenti {selectedAnno}/{selectedAnno + 1}</h2>
-            <div className="text-xl font-bold text-green-400">
-              Totale: €{calcolaTotale()}
-            </div>
+            <div className="mb-4">
+            <p className="text-white text-lg">
+              Da saldare: <span className="text-red-400 font-bold">€{calcolaDaSaldare().toFixed(2)}</span>
+            </p>
           </div>
+          </div>
+
           
           {/* Filtri anno scolastico */}
           <div className="flex gap-2 mb-4">

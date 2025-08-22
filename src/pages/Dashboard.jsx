@@ -71,13 +71,18 @@ function Dashboard() {
     return d; // già in formato DD/MM/YYYY
   };
 
-  // Calcola il totale dei mesi pagati usando gli importi effettivi filtrati per anno
-  const calcolaTotale = () => {
+ 
+
+  // Calcola il totale degli importi scaduti (solo quelli in rosso)
+  const calcolaDaSaldare = () => {
     const pagamentiAnno = pagamenti.filter(
-      p => p.anno === selectedAnno || p.anno === selectedAnno + 1 || !p.anno // Include pagamenti senza anno
+      p => p.anno === selectedAnno || p.anno === selectedAnno + 1 || !p.anno
     )
     return pagamentiAnno
-      .filter(p => p.stato === 'pagato')
+      .filter(p => {
+        const stato = getStatoMese(p.mese)
+        return stato === 'scaduto' // Solo importi scaduti (in rosso)
+      })
       .reduce((total, p) => total + (Number(p.importo) || 0), 0)
   }
 
@@ -478,9 +483,9 @@ function Dashboard() {
             Pagamenti {selectedAnno}/{selectedAnno + 1}
           </h2>
           
-          <div className="mb-4">
+           <div className="mb-4">
             <p className="text-white text-lg">
-              Totale: <span className="text-green-400 font-bold">€{calcolaTotale().toFixed(2)}</span>
+              Da saldare: <span className="text-red-400 font-bold">€{calcolaDaSaldare().toFixed(2)}</span>
             </p>
           </div>
           
