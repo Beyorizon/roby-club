@@ -127,7 +127,7 @@ function AllievoDettaglio() {
         .from('pagamenti')
         .select('*')
         .eq('allievo_id', profile.id)
-        .eq('tipo', 'mensile')
+        // RIMOSSO: .eq('tipo', 'mensile') - questo filtro non esiste nella Dashboard
       
       if (error) {
         console.error('Errore caricamento pagamenti:', error)
@@ -137,7 +137,7 @@ function AllievoDettaglio() {
       // Assegna anno di default ai pagamenti che non ce l'hanno
       const pagamentiConAnno = (data || []).map(p => ({
         ...p,
-        anno: p.anno || 2025 // Anno di default se mancante
+        anno: p.anno || 2025 // Anno di default
       }))
       
       setPagamenti(pagamentiConAnno)
@@ -178,11 +178,13 @@ function AllievoDettaglio() {
           .update({
             stato: nuovoStato,
             importo: nuovoImporto,
+            anno: selectedAnno // AGGIUNTO: passa l'anno anche nell'update
           })
           .eq("id", pagamento.id)
         
         if (error) throw error
-      } else {
+      }
+      else {
         // Insert nuovo - INCLUDE ANNO
         const { error } = await supabase
           .from("pagamenti")

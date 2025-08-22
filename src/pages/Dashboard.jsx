@@ -12,7 +12,7 @@ const MESI_ACCADEMICO = [
 function Dashboard() {
   const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
-  
+
   // State per il profilo completo
   const [profile, setProfile] = useState(null)
   const [formData, setFormData] = useState({
@@ -70,9 +70,8 @@ function Dashboard() {
     }
     return d; // già in formato DD/MM/YYYY
   };
-
- 
-
+  
+  // Aggiungi dopo calcolaTotale, intorno alla riga 83
   // Calcola il totale degli importi scaduti (solo quelli in rosso)
   const calcolaDaSaldare = () => {
     const pagamentiAnno = pagamenti.filter(
@@ -125,10 +124,8 @@ function Dashboard() {
     switch (stato) {
       case 'pagato': 
         return pagamento.importo ? `Pagato (€${pagamento.importo})` : 'Pagato'
-      case 'non_pagato': 
-        return 'Non pagato'
       case 'scaduto':
-        return 'Non pagato / Scaduto'
+        return pagamento.importo ? `Non pagato (€${pagamento.importo})` : 'Non pagato'
       case 'non_dovuto':
         return 'Non dovuto'
       default:
@@ -188,48 +185,37 @@ function Dashboard() {
     }
   }
 
-  // Carica pagamenti dell'utente
-  const loadPagamenti = async () => {
-    if (!user?.id) return
-    
-    try {
-      setLoadingPagamenti(true)
-      
-      // Prima ottieni l'ID utente dalla tabella utenti
-      const { data: userData, error: userError } = await supabase
-        .from('utenti')
-        .select('id')
-        .eq('auth_id', user.id)
-        .single()
-      
-      if (userError || !userData) {
-        console.error('Errore nel trovare l\'utente:', userError)
-        return
-      }
-      
-      const { data: pagamentiData, error } = await supabase
-        .from('pagamenti')
-        .select('*')
-        .eq('allievo_id', userData.id)
-      
-      if (error) {
-        console.error('Errore caricamento pagamenti:', error)
-        return
-      }
-      
-      // Assegna anno di default ai pagamenti che non ce l'hanno
-      const pagamentiConAnno = (pagamentiData || []).map(p => ({
-        ...p,
-        anno: p.anno || 2025 // Anno di default
-      }))
-      
-      setPagamenti(pagamentiConAnno)
-    } catch (err) {
-      console.error('Errore caricamento pagamenti:', err)
-    } finally {
-      setLoadingPagamenti(false)
+// Carico i pagamenti dell'utente loggato
+const loadPagamenti = async () => {
+  if (!user?.id || !profile?.id) return;
+
+  try {
+    setLoadingPagamenti(true);
+
+    const { data: pagamentiRows, error: pagamentiError } = await supabase
+      .from("pagamenti")
+      .select("*")
+      .eq("auth_id", user.id);
+
+    if (pagamentiError) {
+      console.error("Errore fetch pagamenti:", pagamentiError);
+      return;
     }
+
+    const pagamentiNormalizzati = (pagamentiRows || []).map((p) => ({
+      ...p,
+      anno: p.anno || new Date().getFullYear(),
+    }));
+
+    setPagamenti(pagamentiNormalizzati);
+  } finally {
+    setLoadingPagamenti(false);
   }
+};
+
+
+
+
 
   // Carica i dati del profilo utente
   useEffect(() => {
@@ -312,11 +298,34 @@ function Dashboard() {
     return () => { isMounted = false }
   }, [user?.id])
 
-  // Carica corsi e pagamenti quando il componente si monta
-  useEffect(() => {
-    loadCorsi()
-    loadPagamenti()
-  }, [user?.id])
+ // Carica corsi quando l’utente cambia
+useEffect(() => {
+  if (profile?.id) {
+    loadCorsi();
+    loadPagamenti();
+  }
+}, [profile?.id, selectedAnno]);
+
+useEffect(() => {
+  if (!profile?.id) return;
+  const interval = setInterval(() => {
+    loadPagamenti();
+  }, 10000);
+  return () => clearInterval(interval);
+}, [profile?.id]);
+
+
+// Ricarica pagamenti quando la finestra torna in focus
+useEffect(() => {
+  const handleFocus = () => {
+    if (profile?.id) {
+      loadPagamenti();
+    }
+  };
+  window.addEventListener("focus", handleFocus);
+  return () => window.removeEventListener("focus", handleFocus);
+}, [profile?.id]);
+
 
   // Funzione handleSubmit per il salvataggio profilo
   const handleSubmit = async (e) => {
@@ -483,11 +492,13 @@ function Dashboard() {
             Pagamenti {selectedAnno}/{selectedAnno + 1}
           </h2>
           
-           <div className="mb-4">
+          <div className="mb-4">
             <p className="text-white text-lg">
               Da saldare: <span className="text-red-400 font-bold">€{calcolaDaSaldare().toFixed(2)}</span>
             </p>
           </div>
+          
+          {/* Rimuovi il commento JSX errato dalle righe 486-496 */}
           
           {/* Filtro anni */}
           <div className="mb-6 flex gap-2 flex-wrap">
