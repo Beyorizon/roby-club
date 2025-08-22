@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthProvider'
 import CardGlass from '../components/CardGlass.jsx'
+import { resetIOSZoom } from '../utils/iosZoomFix'
 
 function Login() {
   const [formData, setFormData] = useState({ email: '', password: '' })
@@ -17,18 +18,27 @@ function Login() {
     })
   }
 
+  useEffect(() => {
+    // Reset zoom quando si carica la pagina login
+    resetIOSZoom();
+  }, []);
+  
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setLoading(true)
+    setIsLoading(true)
     setError('')
 
     try {
       await signIn(formData.email, formData.password)
-      navigate('/dashboard', { replace: true })
-    } catch (err) {
-      setError('Credenziali non valide. Riprova.')
+      // Reset zoom prima della navigazione
+      resetIOSZoom()
+      navigate('/dashboard')
+    } catch (error) {
+      setError(error.message)
     } finally {
-      setLoading(false)
+      setIsLoading(false)
+      // Reset zoom anche in caso di errore
+      setTimeout(resetIOSZoom, 100)
     }
   }
 

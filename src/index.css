@@ -125,4 +125,55 @@
     max-width: 100%;
     box-sizing: border-box;
   }
+  
+  /* Correzioni specifiche per iOS zoom */
+  input, textarea, select {
+    font-size: 16px !important;
+    -webkit-text-size-adjust: 100%;
+    -webkit-appearance: none;
+    border-radius: 0;
+  }
+  
+  /* Prevenire zoom su focus per iOS */
+  @supports (-webkit-touch-callout: none) {
+    input, textarea, select {
+      font-size: 16px !important;
+      transform: scale(1);
+      transform-origin: left top;
+    }
+  }
+  
+  /* Reset zoom dopo login - forza scala 1 */
+  body {
+    zoom: 1;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }
+  
+  /* Correzione overflow per iOS */
+  html {
+    overflow-x: hidden !important;
+    width: 100% !important;
+    position: relative;
+  }
+  
+  body {
+    overflow-x: hidden !important;
+    width: 100% !important;
+    position: relative;
+    min-width: 320px;
+  }
+  
+  /* Prevenire scroll orizzontale su tutti gli elementi */
+  * {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* Correzione specifica per container principali */
+  #root {
+    overflow-x: hidden !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+  }
 }

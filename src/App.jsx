@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AuthProvider from './context/AuthProvider.jsx'
 import UserGuard from './components/UserGuard.jsx'
@@ -11,6 +11,7 @@ import Signup from './pages/Signup.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Orari from './pages/Orari.jsx'
 import Notizie from './pages/Notizie.jsx'
+import { initIOSZoomFix } from './utils/iosZoomFix'
 
 // Admin Layout e Pagine
 import AdminLayout from './pages/admin/AdminLayout.jsx'
@@ -22,6 +23,10 @@ import Riepilogo from './pages/admin/Riepilogo.jsx'
 import './App.css'
 
 function App() {
+  useEffect(() => {
+    // Inizializza correzioni iOS
+    initIOSZoomFix();
+  }, []);
   const basename = import.meta.env.VITE_BASE_PATH || "/"
   return (
 <BrowserRouter basename={basename}>
@@ -36,7 +41,6 @@ function App() {
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/orari" element={<Orari />} />
-              <Route path="/notizie" element={<Notizie />} />
               
               {/* Dashboard per utenti autenticati */}
               <Route 
