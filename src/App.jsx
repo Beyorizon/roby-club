@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import AuthProvider from './context/AuthProvider.jsx'
 import UserGuard from './components/UserGuard.jsx'
@@ -11,7 +11,6 @@ import Signup from './pages/Signup.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Orari from './pages/Orari.jsx'
 import Notizie from './pages/Notizie.jsx'
-import { initIOSZoomFix } from './utils/iosZoomFix'
 
 // Admin Layout e Pagine
 import AdminLayout from './pages/admin/AdminLayout.jsx'
@@ -23,13 +22,8 @@ import Riepilogo from './pages/admin/Riepilogo.jsx'
 import './App.css'
 
 function App() {
-  useEffect(() => {
-    // Inizializza correzioni iOS
-    initIOSZoomFix();
-  }, []);
-  const basename = import.meta.env.VITE_BASE_PATH || "/"
   return (
-<BrowserRouter basename={basename}>
+<BrowserRouter basename={import.meta.env.VITE_BASE_PATH || '/'}>
       <AuthProvider>
         <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 overflow-x-hidden">
           <Navbar />
