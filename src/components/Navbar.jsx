@@ -166,7 +166,7 @@ function Navbar() {
               <span className="font-medium">Orari</span>
             </Link>
 
-            {/* Chi siamo */}
+            {/* Chi siamo - TEMPORANEAMENTE NASCOSTO
             <Link
               to="/chi-siamo"
               onClick={() => setIsMenuOpen(false)}
@@ -175,6 +175,7 @@ function Navbar() {
               <InfoIcon />
               <span className="font-medium">Chi siamo</span>
             </Link>
+            */}
 
             {/* Saggi */}
             <button
@@ -188,7 +189,7 @@ function Navbar() {
               <span className="font-medium">Saggi</span>
             </button>
 
-            {/* Regolamento */}
+            {/* Regolamento - TEMPORANEAMENTE NASCOSTO
             <Link
               to="/regolamento"
               onClick={() => setIsMenuOpen(false)}
@@ -197,6 +198,7 @@ function Navbar() {
               <BookIcon />
               <span className="font-medium">Regolamento</span>
             </Link>
+            */}
 
             {/* Dashboard/Accedi - Quarta posizione */}
             {session ? (

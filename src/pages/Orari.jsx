@@ -11,7 +11,8 @@ export default function Orari() {
     try {
       const { data, error } = await supabase
         .from("lezioni")
-        .select("id, giorno, orario_inizio, orario_fine, nome_corso");
+        .select("id, giorno, orario_inizio, orario_fine, nome_corso")
+        .order('orario_inizio', { ascending: true }); // Ordinamento per orario
 
       if (error) {
         console.error("[Supabase Error]", error);
@@ -54,12 +55,19 @@ export default function Orari() {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {giorniSettimana.map((giorno) => {
             
-            const lezioniDelGiorno = lezioni.filter(
-              (lezione) =>
-                lezione.giorno &&
-                lezione.giorno.toLowerCase() === giorno.toLowerCase()
-                
-            );
+            const lezioniDelGiorno = lezioni
+              .filter(
+                (lezione) =>
+                  lezione.giorno &&
+                  lezione.giorno.toLowerCase() === giorno.toLowerCase()
+              )
+              .sort((a, b) => {
+                // Ordinamento aggiuntivo per orario_inizio nel caso non sia già ordinato dal database
+                if (a.orario_inizio < b.orario_inizio) return -1;
+                if (a.orario_inizio > b.orario_inizio) return 1;
+                return 0;
+              });
+              
             return (
               <div
                 key={giorno}

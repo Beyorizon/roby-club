@@ -35,6 +35,8 @@ function App() {
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/orari" element={<Orari />} />
+              <Route path="/notizie" element={<Notizie />} />
+
               
               {/* Dashboard per utenti autenticati */}
               <Route 
