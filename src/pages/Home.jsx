@@ -44,6 +44,18 @@ const SAGGI_YOUTUBE = [
     url: "https://www.youtube.com/watch?v=8VRtjBeCfO0",
     thumbnail: "https://img.youtube.com/vi/8VRtjBeCfO0/hqdefault.jpg"
   },
+  {
+    id: 7,
+    titolo: "Saggio di Fine Anno 2016",
+    url: "https://www.youtube.com/watch?v=54ksS_aNXAs",
+    thumbnail: "https://img.youtube.com/vi/54ksS_aNXAs/hqdefault.jpg"
+  },
+  {
+    id: 8,
+    titolo: "Saggio di Fine Anno 2015",
+    url: "https://www.youtube.com/watch?v=38jaThxG4To",
+    thumbnail: "https://img.youtube.com/vi/38jaThxG4To/hqdefault.jpg"
+  },
 ];
 
 // Funzione per il giorno corrente in italiano
