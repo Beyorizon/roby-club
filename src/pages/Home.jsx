@@ -26,6 +26,24 @@ const SAGGI_YOUTUBE = [
     url: "https://www.youtube.com/watch?v=DsXZXQHYeyk",
     thumbnail: "https://img.youtube.com/vi/DsXZXQHYeyk/maxresdefault.jpg"
   },
+  {
+    id: 4,
+    titolo: "Saggio di Fine Anno 2019",
+    url: "https://www.youtube.com/watch?v=rd7GSwVZPYQ",
+    thumbnail: "https://img.youtube.com/vi/rd7GSwVZPYQ/hqdefault.jpg"
+  },
+  {
+    id: 5,
+    titolo: "Saggio di Fine Anno 2018",
+    url: "https://www.youtube.com/watch?v=2F6arcYig4I",
+    thumbnail: "https://img.youtube.com/vi/2F6arcYig4I/hqdefault.jpg"
+  },
+  {
+    id: 6,
+    titolo: "Saggio di Fine Anno 2017",
+    url: "https://www.youtube.com/watch?v=8VRtjBeCfO0",
+    thumbnail: "https://img.youtube.com/vi/8VRtjBeCfO0/hqdefault.jpg"
+  },
 ];
 
 // Funzione per il giorno corrente in italiano
