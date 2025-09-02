@@ -35,20 +35,6 @@ function SignupAllievo() {
       })
       if (error) throw error
 
-      // Inserisci record in tabella utenti
-      if (data?.user) {
-        const { error: dbError } = await supabase
-          .from('utenti')
-          .insert({
-            auth_id: data.user.id,
-            nome: formData.nome,
-            cognome: formData.cognome,
-            email: formData.email,
-            ruolo: 'allievo'
-          })
-        if (dbError) throw dbError
-      }
-
       setInfo('Controlla la tua email per confermare il tuo account.')
       setTimeout(() => navigate('/login'), 3000)
     } catch (err) {
