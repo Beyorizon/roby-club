@@ -140,7 +140,7 @@ function Navbar() {
 
   const dashboardPath =
     ruolo === "admin"
-      ? "/admin"
+      ? "/admin/allievi"  // ← Cambiato da "/admin" a "/admin/allievi"
       : ruolo === "genitore"
       ? "/dashboard-genitore"
       : ruolo === "allievo"
