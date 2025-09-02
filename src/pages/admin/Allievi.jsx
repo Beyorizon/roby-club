@@ -54,8 +54,7 @@ export default function Allievi() {
 
       let query = supabase
         .from('utenti')
-        .select('id, auth_id, nome, cognome', { count: 'exact' })
-        .eq('ruolo', 'allievo')
+        .select('id, auth_id, ruolo, nome, cognome', { count: 'exact' })
         .order('cognome')
         .order('nome')
         .range(from, to)
@@ -194,6 +193,7 @@ export default function Allievi() {
                     <tr className="text-white/70 border-b border-white/10">
                       <th className="py-4 px-6 font-medium">Nome</th>
                       <th className="py-4 px-6 font-medium">Cognome</th>
+                      <th className="py-4 px-6 font-medium">Tipo</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -212,6 +212,9 @@ export default function Allievi() {
                           <div className="text-white font-medium">
                             {allievo.cognome}
                           </div>
+                        </td>
+                        <td className="py-4 px-6 text-white">
+                          {allievo.ruolo === "genitore" ? "Genitore" : "Allievo"}
                         </td>
                       </tr>
                     ))}

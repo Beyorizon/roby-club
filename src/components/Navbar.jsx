@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthProvider';
 import PWAInstallBar from './PWAInstallBar';
@@ -9,7 +9,40 @@ function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [ruolo, setRuolo] = useState(null);
 
+  useEffect(() => {
+    const loadRuolo = async () => {
+      if (!session?.user) {
+        setRuolo(null);
+        return;
+      }
+      if (isAdmin) {
+        setRuolo("admin");
+        return;
+      }
+      const { data: g } = await supabase
+        .from("genitori")
+        .select("id")
+        .eq("auth_id", session.user.id)
+        .maybeSingle();
+      if (g) {
+        setRuolo("genitore");
+        return;
+      }
+      const { data: u } = await supabase
+        .from("utenti")
+        .select("id")
+        .eq("auth_id", session.user.id)
+        .maybeSingle();
+      if (u) {
+        setRuolo("allievo");
+        return;
+      }
+      setRuolo(null);
+    };
+    loadRuolo();
+  }, [session, isAdmin]);
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
@@ -104,6 +137,15 @@ function Navbar() {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
     </svg>
   );
+
+  const dashboardPath =
+    ruolo === "admin"
+      ? "/admin"
+      : ruolo === "genitore"
+      ? "/dashboard-genitore"
+      : ruolo === "allievo"
+      ? "/dashboard-allievo"
+      : "/login";
 
   return (
     <>
@@ -204,13 +246,13 @@ function Navbar() {
             {session ? (
               <>
                 <Link
-                  to={isAdmin ? "/admin" : "/dashboard"}
+                  to={dashboardPath}
                   onClick={() => setIsMenuOpen(false)}
                   className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
                 >
                   <DashboardIcon />
                   <span className="font-medium">
-                    {isAdmin ? 'Admin' : 'Dashboard'}
+                    Dashboard
                   </span>
                 </Link>
 
@@ -294,13 +336,13 @@ function Navbar() {
           {/* 4. Dashboard/Accedi */}
           {session ? (
             <Link
-              to={isAdmin ? "/admin" : "/dashboard"}
+              to={dashboardPath}
               className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
-                isActive(isAdmin ? '/admin' : '/dashboard') 
+                isActive(dashboardPath) 
                   ? 'text-white bg-white/20' 
                   : 'text-white/70 hover:text-white hover:bg-white/10'
               }`}
-              aria-current={isActive(isAdmin ? '/admin' : '/dashboard') ? 'page' : undefined}
+              aria-current={isActive(dashboardPath) ? 'page' : undefined}
             >
               <DashboardIcon />
               <span className="text-xs mt-1 font-medium">Dashboard</span>

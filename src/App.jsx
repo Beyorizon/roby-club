@@ -4,13 +4,21 @@ import AuthProvider from './context/AuthProvider.jsx'
 import UserGuard from './components/UserGuard.jsx'
 import AdminGuard from './components/AdminGuard.jsx'
 import Navbar from './components/Navbar.jsx'
+
+// Pagine pubbliche
 import Home from './pages/Home.jsx'
 import Login from './pages/Login.jsx'
-import AdminLogin from './pages/AdminLogin.jsx'
 import Signup from './pages/Signup.jsx'
-import Dashboard from './pages/Dashboard.jsx'
+import SignupGenitore from './pages/SignupGenitore.jsx'
+import SignupAllievo from './pages/SignupAllievo.jsx'
 import Orari from './pages/Orari.jsx'
 import Notizie from './pages/Notizie.jsx'
+
+// Dashboard
+import DashboardAllievo from './pages/DashboardAllievo.jsx'
+import DashboardGenitore from './pages/DashboardGenitore.jsx'
+import AggiungiFiglio from './pages/AggiungiFiglio.jsx'
+import DashboardFiglio from './pages/DashboardFiglio.jsx'
 
 // Admin Layout e Pagine
 import AdminLayout from './pages/admin/AdminLayout.jsx'
@@ -23,7 +31,7 @@ import './App.css'
 
 function App() {
   return (
-<BrowserRouter basename={import.meta.env.VITE_BASE_PATH || '/'}>
+    <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || '/'}>
       <AuthProvider>
         <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 overflow-x-hidden">
           <Navbar />
@@ -32,22 +40,46 @@ function App() {
               {/* Route pubbliche */}
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
-              <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/signup-genitore" element={<SignupGenitore />} />
+              <Route path="/signup-allievo" element={<SignupAllievo />} />
               <Route path="/orari" element={<Orari />} />
               <Route path="/notizie" element={<Notizie />} />
 
-              
               {/* Dashboard per utenti autenticati */}
               <Route 
-                path="/dashboard" 
+                path="/dashboard-allievo" 
                 element={
                   <UserGuard>
-                    <Dashboard />
+                    <DashboardAllievo />
                   </UserGuard>
                 } 
               />
-              
+              <Route 
+                path="/dashboard-genitore" 
+                element={
+                  <UserGuard>
+                    <DashboardGenitore />
+                  </UserGuard>
+                } 
+              />
+              <Route 
+                path="/aggiungi-figlio" 
+                element={
+                  <UserGuard>
+                    <AggiungiFiglio />
+                  </UserGuard>
+                } 
+              />
+              <Route 
+                path="/figlio/:id" 
+                element={
+                  <UserGuard>
+                    <DashboardFiglio />
+                  </UserGuard>
+                } 
+              />
+
               {/* Area admin protetta */}
               <Route 
                 path="/admin/*" 
@@ -63,7 +95,7 @@ function App() {
                 <Route path="notizie" element={<NotizieAdmin />} />
                 <Route path="riepilogo" element={<Riepilogo />} />
               </Route>
-              
+
               {/* Fallback */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

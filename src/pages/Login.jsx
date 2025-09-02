@@ -1,13 +1,12 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthProvider'
 import CardGlass from '../components/CardGlass.jsx'
+import { supabase } from '../lib/supabase.js'
 
 function Login() {
   const [formData, setFormData] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const { signIn } = useAuth()
   const navigate = useNavigate()
 
   const handleChange = (e) => {
@@ -23,10 +22,49 @@ function Login() {
     setError('')
 
     try {
-      await signIn(formData.email, formData.password)
-      navigate('/dashboard', { replace: true })
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password
+      })
+
+      if (error) throw error
+      const user = data?.user
+      if (!user) throw new Error("Login fallito")
+
+      // 1. Controllo genitore
+      const { data: parent } = await supabase
+        .from("genitori")
+        .select("id")
+        .eq("auth_id", user.id)
+        .maybeSingle()
+
+      if (parent) {
+        navigate("/dashboard-genitore", { replace: true })
+        return
+      }
+
+      // 2. Controllo allievo
+      const { data: student } = await supabase
+        .from("utenti")
+        .select("id, ruolo")
+        .eq("auth_id", user.id)
+        .maybeSingle()
+
+      if (student?.ruolo === "allievo") {
+        navigate("/dashboard-allievo", { replace: true })
+        return
+      }
+
+      // 3. Controllo admin
+      if (student?.ruolo === "admin") {
+        navigate("/admin", { replace: true })
+        return
+      }
+
+      setError("Account non associato a nessun ruolo valido")
     } catch (err) {
-      setError('Credenziali non valide. Riprova.')
+      console.error(err)
+      setError("Credenziali non valide. Riprova.")
     } finally {
       setLoading(false)
     }
@@ -38,12 +76,8 @@ function Login() {
         <CardGlass>
           <div className="p-4 sm:p-6">
             <div className="text-center mb-6">
-              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
-                Accedi
-              </h2>
-              <p className="text-white/70 text-sm">
-                Accedi al tuo account
-              </p>
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Accedi</h2>
+              <p className="text-white/70 text-sm">Inserisci le tue credenziali</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -54,33 +88,27 @@ function Login() {
               )}
 
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-white/80 mb-1">
-                  Email
-                </label>
+                <label className="block text-sm font-medium text-white/80 mb-1">Email</label>
                 <input
-                  id="email"
-                  name="email"
                   type="email"
+                  name="email"
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="tua@email.com"
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-white/80 mb-1">
-                  Password
-                </label>
+                <label className="block text-sm font-medium text-white/80 mb-1">Password</label>
                 <input
-                  id="password"
-                  name="password"
                   type="password"
+                  name="password"
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="••••••••"
                 />
               </div>
@@ -88,24 +116,15 @@ function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 text-white font-medium py-2 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-transparent text-sm"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 text-white font-medium py-2 px-4 rounded-lg transition-colors"
               >
                 {loading ? 'Accesso in corso...' : 'Accedi'}
               </button>
             </form>
 
-            <div className="mt-4 text-center space-y-2">
-              <Link
-                to="/signup"
-                className="block text-indigo-400 hover:text-indigo-300 text-xs"
-              >
+            <div className="mt-4 text-center">
+              <Link to="/signup" className="text-indigo-400 hover:text-indigo-300 text-sm">
                 Non sei registrato? Registrati
-              </Link>
-              <Link
-                to="/admin-login"
-                className="block text-yellow-400 hover:text-yellow-300 text-xs"
-              >
-                Sei un amministratore? Accedi
               </Link>
             </div>
           </div>

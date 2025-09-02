@@ -17,6 +17,9 @@ function AllievoDettaglio() {
   const { id } = useParams()
   const { isAdmin } = useAuth()
   
+  // State per i tab
+  const [tab, setTab] = useState("profilo")
+  
   // State per il profilo completo
   const [profile, setProfile] = useState(null)
   const [formData, setFormData] = useState({
@@ -50,6 +53,26 @@ function AllievoDettaglio() {
   const [loadingPagamenti, setLoadingPagamenti] = useState(false)
   const [defaultImporto, setDefaultImporto] = useState(30)
   const [selectedAnno, setSelectedAnno] = useState(new Date().getFullYear())
+  
+  // State per pagamenti extra
+  const [saggio, setSaggio] = useState([])
+  const [vestiti, setVestiti] = useState([])
+  
+  // State per gestione iscrizione
+  const [iscrizioneData, setIscrizioneData] = useState('')
+  const [iscrizioneImporto, setIscrizioneImporto] = useState('')
+  
+  // State per form saggio (per ogni tranche)
+  const [saggioForm, setSaggioForm] = useState({
+    1: { importo: '', data: '' },
+    2: { importo: '', data: '' },
+    3: { importo: '', data: '' },
+    4: { importo: '', data: '' }
+  })
+  
+  // State per form vestiti
+  const [showVestitiForm, setShowVestitiForm] = useState(false)
+  const [nuovoVestito, setNuovoVestito] = useState({ descrizione: '', importo: '', stato: 'non_pagato' })
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -145,6 +168,52 @@ function AllievoDettaglio() {
       console.error('Errore caricamento pagamenti:', err)
     } finally {
       setLoadingPagamenti(false)
+    }
+  }
+
+  // Carica pagamenti extra (saggio e vestiti)
+  const loadPagamentiExtra = async () => {
+    if (!profile?.id) return
+    
+    try {
+      // Carica pagamenti saggio
+      const { data: saggioData, error: saggioError } = await supabase
+        .from('pagamenti')
+        .select('*')
+        .eq('allievo_id', profile.id)
+        .eq('categoria', 'saggio')
+      
+      if (saggioError) {
+        console.error('Errore caricamento saggio:', saggioError)
+      } else {
+        setSaggio(saggioData || [])
+        // Popola il form del saggio con i dati esistenti
+        const newSaggioForm = { ...saggioForm }
+        saggioData?.forEach(pagamento => {
+          if (pagamento.tranche && newSaggioForm[pagamento.tranche]) {
+            newSaggioForm[pagamento.tranche] = {
+              importo: pagamento.importo || '',
+              data: pagamento.data_scadenza || ''
+            }
+          }
+        })
+        setSaggioForm(newSaggioForm)
+      }
+      
+      // Carica pagamenti vestiti
+      const { data: vestitiData, error: vestitiError } = await supabase
+        .from('pagamenti')
+        .select('*')
+        .eq('allievo_id', profile.id)
+        .eq('categoria', 'vestiti')
+      
+      if (vestitiError) {
+        console.error('Errore caricamento vestiti:', vestitiError)
+      } else {
+        setVestiti(vestitiData || [])
+      }
+    } catch (err) {
+      console.error('Errore caricamento pagamenti extra:', err)
     }
   }
 
@@ -294,6 +363,137 @@ if (pagamento.stato === 'non_pagato') {
       default: return 'bg-gray-500 hover:bg-gray-600 text-white'
     }
   }
+  
+  // Gestisce il pagamento iscrizione con ciclo a tre stati
+  const handleIscrizioneChange = async (importo, data, stato) => {
+    try {
+      const iscrizionePagamento = pagamenti.find(p => p.categoria === 'iscrizione')
+      
+      if (iscrizionePagamento) {
+        // Update esistente
+        const { error } = await supabase
+          .from('pagamenti')
+          .update({ importo, data_scadenza: data, stato })
+          .eq('id', iscrizionePagamento.id)
+        
+        if (error) throw error
+      } else {
+        // Insert nuovo
+        const { error } = await supabase
+          .from('pagamenti')
+          .insert({
+            allievo_id: profile.id,
+            categoria: 'iscrizione',
+            importo,
+            data_scadenza: data,
+            stato
+          })
+        
+        if (error) throw error
+      }
+      
+      // Ricarica pagamenti
+      loadPagamenti()
+    } catch (err) {
+      console.error('Errore gestione iscrizione:', err)
+    }
+  }
+  
+  // Gestisce il click sull'iscrizione con ciclo a tre stati
+  const handleIscrizioneClick = async () => {
+    const iscrizionePagamento = pagamenti.find(p => p.categoria === 'iscrizione')
+    let nuovoStato
+    
+    if (!iscrizionePagamento || iscrizionePagamento.stato === 'non_dovuto') {
+      nuovoStato = 'scaduto'
+    } else if (iscrizionePagamento.stato === 'scaduto') {
+      nuovoStato = 'pagato'
+    } else {
+      nuovoStato = 'non_dovuto'
+    }
+    
+    const importo = parseFloat(iscrizioneImporto) || 0
+    const data = iscrizioneData || null
+    
+    await handleIscrizioneChange(importo, data, nuovoStato)
+  }
+  
+  // Gestisce il click sul saggio con ciclo a tre stati
+  const handleSaggioClick = async (tranche, importo, data) => {
+    try {
+      const pagamento = saggio.find(p => p.tranche === tranche)
+      let nuovoStato
+      
+      if (!pagamento || pagamento.stato === 'non_dovuto') {
+        nuovoStato = 'scaduto'
+      } else if (pagamento.stato === 'scaduto') {
+        nuovoStato = 'pagato'
+      } else {
+        nuovoStato = 'non_dovuto'
+      }
+      
+      const { error } = await supabase
+        .from('pagamenti')
+        .upsert({
+          categoria: 'saggio',
+          tranche: tranche,
+          allievo_id: profile.id,
+          importo: parseFloat(importo) || 0,
+          data_scadenza: data || null,
+          stato: nuovoStato
+        })
+      
+      if (error) throw error
+      
+      // Ricarica pagamenti saggio
+      loadPagamentiExtra()
+    } catch (err) {
+      console.error('Errore gestione saggio:', err)
+    }
+  }
+  
+  // Gestisce l'aggiunta di un nuovo vestito
+  const handleAggiungiVestito = async () => {
+    try {
+      const { error } = await supabase
+        .from('pagamenti')
+        .insert({
+          categoria: 'vestiti',
+          allievo_id: profile.id,
+          importo: parseFloat(nuovoVestito.importo),
+          note: nuovoVestito.descrizione,
+          stato: nuovoVestito.stato
+        })
+      
+      if (error) throw error
+      
+      // Reset form
+      setNuovoVestito({ descrizione: '', importo: '', stato: 'non_pagato' })
+      setShowVestitiForm(false)
+      
+      // Ricarica vestiti
+      loadPagamentiExtra()
+    } catch (err) {
+      console.error('Errore aggiunta vestito:', err)
+    }
+  }
+  
+  // Gestisce il cambio stato vestito
+  const handleVestitoStatoChange = async (vestitoId, nuovoStato) => {
+    try {
+      const { error } = await supabase
+        .from('pagamenti')
+        .update({ stato: nuovoStato })
+        .eq('id', vestitoId)
+      
+      if (error) throw error
+      
+      // Ricarica vestiti
+      loadPagamentiExtra()
+    } catch (err) {
+      console.error('Errore cambio stato vestito:', err)
+    }
+  }
   // Carica i dati del profilo utente tramite id
   useEffect(() => {
     let isMounted = true
@@ -387,6 +587,7 @@ if (pagamento.stato === 'non_pagato') {
   useEffect(() => {
     if (profile?.id) {
       loadPagamenti()
+      loadPagamentiExtra()
     }
   }, [profile?.id])
 
@@ -529,90 +730,310 @@ if (pagamento.stato === 'non_pagato') {
             </Link>
           </div>
         </div>
-
-        {/* Sezione Pagamenti con filtro anno */}
-        <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-semibold text-white">Pagamenti {selectedAnno}/{selectedAnno + 1}</h2>
-            <div className="mb-4">
-            <p className="text-white text-lg">
-              Da saldare: <span className="text-red-400 font-bold">€{calcolaDaSaldare().toFixed(2)}</span>
-            </p>
-          </div>
-          </div>
-
-          
-          {/* Filtri anno scolastico */}
-          <div className="flex gap-2 mb-4">
-            {[2025, 2026].map(a => (
+        
+        {/* Navigation Tab */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setTab("profilo")}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              tab === "profilo"
+                ? "bg-indigo-500 text-white"
+                : "bg-white/10 text-white/70 hover:bg-white/20"
+            }`}
+          >
+            Profilo
+          </button>
+          {!profile?.genitore_id && (
+            <>
               <button
-                key={a}
-                onClick={() => setSelectedAnno(a)}
-                className={`px-3 py-1 rounded ${
-                  selectedAnno === a ? "bg-green-600 text-white" : "bg-gray-200 text-black"
+                onClick={() => setTab("mensile")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  tab === "mensile"
+                    ? "bg-indigo-500 text-white"
+                    : "bg-white/10 text-white/70 hover:bg-white/20"
                 }`}
               >
-                {a}/{a+1}
+                Mensile
               </button>
-            ))}
-          </div>
-          
-          {/* Input per importo mensile di default */}
-          <div className="mb-4">
-            <label className="mr-2">L'allievo paga al mese:</label>
-            <input
-              type="number"
-              value={defaultImporto}
-              min="0"
-              step="0.01"
-              onChange={(e) => setDefaultImporto(Number(e.target.value))}
-              className="border rounded px-2 py-1 w-24 text-black"
-            />
-            €
-          </div>
-          
-          {loadingPagamenti ? (
-            <div className="text-white text-center">Caricamento pagamenti...</div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {MESI_ACCADEMICO.map((mese, index) => {
-                const stato = getStatoMese(mese)
-                const testoMese = getTestoMese(mese)
-                
-                return (
-                  <button
-                    key={mese}
-                    onClick={() => handleMeseClick(mese)}
-                    className={`px-4 py-3 rounded-xl font-medium transition-colors ${
-                      getColoreMese(stato)
-                    }`}
-                  >
-                    <div className="text-sm">{mese}</div>
-                    <div className="text-xs mt-1">{testoMese}</div>
-                  </button>
-                )
-              })}
-            </div>
+              <button
+                onClick={() => setTab("extra")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  tab === "extra"
+                    ? "bg-indigo-500 text-white"
+                    : "bg-white/10 text-white/70 hover:bg-white/20"
+                }`}
+              >
+                Pagamenti
+              </button>
+            </>
           )}
-          
-          {/* Legenda */}
-          <div className="mt-6 flex flex-wrap gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-green-500 rounded"></div>
-              <span className="text-white">Pagato</span>
+        </div>
+        {/* TAB MENSILE */}
+        {!profile?.genitore_id && tab === "mensile" && (
+          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-semibold text-white">Pagamenti {selectedAnno}/{selectedAnno + 1}</h2>
+              <div className="mb-4">
+              <p className="text-white text-lg">
+                Da saldare: <span className="text-red-400 font-bold">€{calcolaDaSaldare().toFixed(2)}</span>
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-red-500 rounded"></div>
-              <span className="text-white">Non pagato / Scaduto</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-gray-500 rounded"></div>
-              <span className="text-white">Non dovuto</span>
+            
+            
+            {/* Filtri anno scolastico */}
+            <div className="flex gap-2 mb-4">
+              {[2025, 2026].map(a => (
+                <button
+                  key={a}
+                  onClick={() => setSelectedAnno(a)}
+                  className={`px-3 py-1 rounded ${
+                    selectedAnno === a ? "bg-green-600 text-white" : "bg-gray-200 text-black"
+                  }`}
+                >
+                  {a}/{a+1}
+                </button>
+              ))}
+            </div>
+            
+            {/* Input per importo mensile di default */}
+            <div className="mb-4">
+              <label className="mr-2 text-white">L'allievo paga al mese:</label>
+              <input
+                type="number"
+                value={defaultImporto}
+                min="0"
+                step="0.01"
+                onChange={(e) => setDefaultImporto(Number(e.target.value))}
+                className="border rounded px-2 py-1 w-24 text-black"
+              />
+              <span className="text-white ml-1">€</span>
+            </div>
+            
+            {loadingPagamenti ? (
+              <div className="text-white text-center">Caricamento pagamenti...</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {MESI_ACCADEMICO.map((mese, index) => {
+                  const stato = getStatoMese(mese)
+                  const testoMese = getTestoMese(mese)
+                  
+                  return (
+                    <button
+                      key={mese}
+                      onClick={() => handleMeseClick(mese)}
+                      className={`px-4 py-3 rounded-xl font-medium transition-colors ${
+                        getColoreMese(stato)
+                      }`}
+                    >
+                      <div className="text-sm">{mese}</div>
+                      <div className="text-xs mt-1">{testoMese}</div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            
+            {/* Sezione Iscrizione */}
+            <div className="mt-6">
+              <h3 className="text-xl font-semibold text-white mb-3">Iscrizione</h3>
+              {(() => {
+                const iscrizionePagamento = pagamenti.find(p => p.categoria === "iscrizione")
+                return (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <input
+                        type="number"
+                        placeholder="Importo (€)"
+                        value={iscrizioneImporto}
+                        onChange={(e) => setIscrizioneImporto(e.target.value)}
+                        className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
+                      />
+                      <input
+                        type="date"
+                        value={iscrizioneData}
+                        onChange={(e) => setIscrizioneData(e.target.value)}
+                        className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
+                      />
+                      <button
+                        onClick={handleIscrizioneClick}
+                        className="px-3 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white"
+                      >
+                        Aggiorna stato
+                      </button>
+                    </div>
+
+                    <div className={`px-3 py-2 rounded-lg text-center font-medium ${
+                      iscrizionePagamento?.stato === 'pagato'
+                        ? 'bg-green-500 text-white'
+                        : iscrizionePagamento?.stato === 'scaduto'
+                        ? 'bg-red-500 text-white'
+                        : 'bg-gray-500 text-white'
+                    }`}>
+                      {iscrizionePagamento?.stato === 'pagato'
+                        ? 'Pagato'
+                        : iscrizionePagamento?.stato === 'scaduto'
+                        ? 'Non pagato'
+                        : 'Non dovuto'}
+                    </div>
+                  </div>
+                )
+              })()
+            }
+            </div>
+            
+            {/* Legenda */}
+            <div className="mt-6 flex flex-wrap gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-green-500 rounded"></div>
+                <span className="text-white">Pagato</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-red-500 rounded"></div>
+                <span className="text-white">Non pagato / Scaduto</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-gray-500 rounded"></div>
+                <span className="text-white">Non dovuto</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Form profilo */}
+        {/* TAB PAGAMENTI EXTRA */}
+        {!profile?.genitore_id && tab === "extra" && (
+          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 space-y-6">
+            <h2 className="text-2xl font-semibold text-white">Pagamenti Extra</h2>
+
+            {/* Saggio */}
+            <div>
+              <h3 className="text-xl font-semibold text-white mb-3">Quota Saggio</h3>
+              <div className="space-y-4">
+                {[1,2,3,4].map(tranche => {
+                  const pagamento = saggio.find(p => p.tranche === tranche)
+                  return (
+                    <div key={tranche} className="bg-white/5 border border-white/20 rounded-lg p-4">
+                      <h4 className="text-white font-medium mb-3">Tranche {tranche}</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center mb-2">
+                        <input
+                          type="number"
+                          placeholder="Importo (€)"
+                          value={saggioForm[tranche]?.importo || ""}
+                          onChange={(e) => setSaggioForm(prev => ({
+                            ...prev,
+                            [tranche]: { ...prev[tranche], importo: e.target.value }
+                          }))}
+                          className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
+                        />
+                        <input
+                          type="date"
+                          value={saggioForm[tranche]?.data || ""}
+                          onChange={(e) => setSaggioForm(prev => ({
+                            ...prev,
+                            [tranche]: { ...prev[tranche], data: e.target.value }
+                          }))}
+                          className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaggioClick(tranche, saggioForm[tranche]?.importo, saggioForm[tranche]?.data)}
+                          className={`w-full px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
+                            pagamento?.stato === 'pagato'
+                              ? 'bg-green-500 text-white'
+                              : pagamento?.stato === 'scaduto'
+                              ? 'bg-red-500 text-white'
+                              : 'bg-gray-500 text-white'
+                          }`}
+                        >
+                          {pagamento?.stato === 'pagato'
+                            ? 'Pagato'
+                            : pagamento?.stato === 'scaduto'
+                            ? 'Non pagato'
+                            : 'Non dovuto'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Vestiti */}
+            <div>
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-xl font-semibold text-white">Vestiti e Accessori</h3>
+                <button
+                  onClick={() => setShowVestitiForm(!showVestitiForm)}
+                  className="px-3 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm transition-colors"
+                >
+                  {showVestitiForm ? 'Annulla' : 'Aggiungi'}
+                </button>
+              </div>
+              
+              {showVestitiForm && (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-4 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Descrizione"
+                      value={nuovoVestito.descrizione}
+                      onChange={(e) => setNuovoVestito(prev => ({ ...prev, descrizione: e.target.value }))}
+                      className="px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Importo"
+                      step="0.01"
+                      value={nuovoVestito.importo}
+                      onChange={(e) => setNuovoVestito(prev => ({ ...prev, importo: e.target.value }))}
+                      className="px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50"
+                    />
+                    <select
+                      value={nuovoVestito.stato}
+                      onChange={(e) => setNuovoVestito(prev => ({ ...prev, stato: e.target.value }))}
+                      className="px-3 py-2 rounded bg-white/10 border border-white/20 text-white"
+                    >
+                      <option value="non_pagato">Non pagato</option>
+                      <option value="pagato">Pagato</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={handleAggiungiVestito}
+                    disabled={!nuovoVestito.descrizione || !nuovoVestito.importo}
+                    className="mt-3 px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 text-white rounded-lg transition-colors"
+                  >
+                    Aggiungi
+                  </button>
+                </div>
+              )}
+              
+              {vestiti.length === 0 ? (
+                <p className="text-white/70">Nessun acquisto registrato</p>
+              ) : (
+                <ul className="space-y-2">
+                  {vestiti.map(v => (
+                    <li key={v.id} className="bg-white/5 border border-white/10 rounded-lg p-3 flex justify-between items-center">
+                      <span className="text-white">€{v.importo} – {v.note || "Vestiti/Accessori"}</span>
+                      <button
+                        onClick={() => handleVestitoStatoChange(v.id, v.stato === 'pagato' ? 'non_pagato' : 'pagato')}
+                        className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
+                          v.stato === "pagato" 
+                            ? "bg-green-500 hover:bg-green-600 text-white" 
+                            : "bg-red-500 hover:bg-red-600 text-white"
+                        }`}
+                      >
+                        {v.stato === 'pagato' ? 'Pagato' : 'Non pagato'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB PROFILO */}
+        {tab === "profilo" && (
         <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
           <h2 className="text-2xl font-semibold text-white mb-6">Profilo allievo</h2>
           
@@ -903,25 +1324,26 @@ if (pagamento.stato === 'non_pagato') {
               {saving ? 'Salvando...' : 'Salva modifiche'}
             </button>
           </form>
-        </div>
-
-        {/* Sezione Corsi attivi (visualizzazione dinamica) */}
-        {activeCourses.length > 0 && (
-          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-            <h2 className="text-2xl font-semibold text-white mb-6">Corsi dell'allievo</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {activeCourses.map((course) => (
-                <div key={course.numero} className="bg-white/5 rounded-lg p-4 border border-white/10">
-                  <h3 className="text-lg font-semibold text-white mb-2">
-                    {course.corso}
-                  </h3>
-                  <p className="text-indigo-400 font-medium">
-                    Prezzo: €{course.prezzo}/mese
-                  </p>
-                </div>
-              ))}
+          
+          {/* Sezione Corsi attivi (visualizzazione dinamica) */}
+          {activeCourses.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-xl font-semibold text-white mb-4">Corsi dell'allievo</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {activeCourses.map((course) => (
+                  <div key={course.numero} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                    <h4 className="text-lg font-semibold text-white mb-2">
+                      {course.corso}
+                    </h4>
+                    <p className="text-indigo-400 font-medium">
+                      Prezzo: €{course.prezzo}/mese
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+        </div>
         )}
       </div>
     </div>
