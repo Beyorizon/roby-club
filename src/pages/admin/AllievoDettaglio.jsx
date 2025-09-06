@@ -908,61 +908,8 @@ if (pagamento.stato === 'non_pagato') {
             </div>
             
             
-            {/* Filtri anno scolastico */}
-            <div className="flex gap-2 mb-4">
-              {[2025, 2026].map(a => (
-                <button
-                  key={a}
-                  onClick={() => setSelectedAnno(a)}
-                  className={`px-3 py-1 rounded ${
-                    selectedAnno === a ? "bg-green-600 text-white" : "bg-gray-200 text-black"
-                  }`}
-                >
-                  {a}/{a+1}
-                </button>
-              ))}
-            </div>
-            
-            {/* Input per importo mensile di default */}
-            <div className="mb-4">
-              <label className="mr-2 text-white">L'allievo paga al mese:</label>
-              <input
-                type="number"
-                value={defaultImporto}
-                min="0"
-                step="0.01"
-                onChange={(e) => setDefaultImporto(Number(e.target.value))}
-                className="border rounded px-2 py-1 w-24 text-black"
-              />
-              <span className="text-white ml-1">€</span>
-            </div>
-            
-            {loadingPagamenti ? (
-              <div className="text-white text-center">Caricamento pagamenti...</div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {MESI_ACCADEMICO.map((mese, index) => {
-                  const stato = getStatoMese(mese)
-                  const testoMese = getTestoMese(mese)
-                  
-                  return (
-                    <button
-                      key={mese}
-                      onClick={() => handleMeseClick(mese)}
-                      className={`px-4 py-3 rounded-xl font-medium transition-colors ${
-                        getColoreMese(stato)
-                      }`}
-                    >
-                      <div className="text-sm">{mese}</div>
-                      <div className="text-xs mt-1">{testoMese}</div>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-            
             {/* Iscrizione */}
-            <div className="mt-6">
+            <div className="mb-6">
               <div className="flex justify-between items-center mb-3">
                 <h3 className="text-xl font-semibold text-white">Iscrizione</h3>
                 {!iscrizione && (
@@ -1061,6 +1008,75 @@ if (pagamento.stato === 'non_pagato') {
               ) : !showIscrizioneForm && (
                 <p className="text-white/70">Iscrizione non trovata</p>
               )}
+            </div>
+            
+            {/* Filtri anno scolastico */}
+            <div className="flex gap-2 mb-4">
+              {[2025, 2026].map(a => (
+                <button
+                  key={a}
+                  onClick={() => setSelectedAnno(a)}
+                  className={`px-3 py-1 rounded ${
+                    selectedAnno === a ? "bg-green-600 text-white" : "bg-gray-200 text-black"
+                  }`}
+                >
+                  {a}/{a+1}
+                </button>
+              ))}
+            </div>
+            
+            {/* Input per importo mensile di default */}
+            <div className="mb-4">
+              <label className="mr-2 text-white">L'allievo paga al mese:</label>
+              <input
+                type="number"
+                value={defaultImporto}
+                min="0"
+                step="0.01"
+                onChange={(e) => setDefaultImporto(Number(e.target.value))}
+                className="border rounded px-2 py-1 w-24 text-black"
+              />
+              <span className="text-white ml-1">€</span>
+            </div>
+            
+            {loadingPagamenti ? (
+              <div className="text-white text-center">Caricamento pagamenti...</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {MESI_ACCADEMICO.map((mese, index) => {
+                  const stato = getStatoMese(mese)
+                  const testoMese = getTestoMese(mese)
+                  
+                  return (
+                    <button
+                      key={mese}
+                      onClick={() => handleMeseClick(mese)}
+                      className={`px-4 py-3 rounded-xl font-medium transition-colors ${
+                        getColoreMese(stato)
+                      }`}
+                    >
+                      <div className="text-sm">{mese}</div>
+                      <div className="text-xs mt-1">{testoMese}</div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            
+            {/* Legenda */}
+            <div className="mt-6 flex flex-wrap gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-green-500 rounded"></div>
+                <span className="text-white">Pagato</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-red-500 rounded"></div>
+                <span className="text-white">Non pagato / Scaduto</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-gray-500 rounded"></div>
+                <span className="text-white">Non dovuto</span>
+              </div>
             </div>
             
             {/* Legenda */}

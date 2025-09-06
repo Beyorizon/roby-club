@@ -364,6 +364,17 @@ function DashboardUtente() {
         {/* TAB MENSILE */}
         {tab === "mensile" && (
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 space-y-4">
+            <h3 className="text-xl font-semibold text-white mb-4">Iscrizione</h3>
+            {iscrizione ? (
+              <p className={`font-semibold mb-6 ${
+                iscrizione.stato === "pagato" ? "text-green-400" : "text-red-400"
+              }`}>
+                {iscrizione.stato === "pagato" ? "Pagata" : "Non pagata"} – €{iscrizione.importo}
+              </p>
+            ) : (
+              <p className="text-white/70 mb-6">Nessun pagamento registrato</p>
+            )}
+            
             <h2 className="text-2xl font-semibold text-white mb-4">Pagamenti mensili</h2>
             <select
               value={selectedAnno}
@@ -391,16 +402,6 @@ function DashboardUtente() {
                 )
               })}
             </div>
-            <h3 className="text-xl font-semibold text-white mt-6">Iscrizione</h3>
-            {iscrizione ? (
-              <p className={`font-semibold ${
-                iscrizione.stato === "pagato" ? "text-green-400" : "text-red-400"
-              }`}>
-                {iscrizione.stato === "pagato" ? "Pagata" : "Non pagata"} – €{iscrizione.importo}
-              </p>
-            ) : (
-              <p className="text-white/70">Nessun pagamento registrato</p>
-            )}
           </div>
         )}
 
