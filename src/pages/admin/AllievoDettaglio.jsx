@@ -57,22 +57,24 @@ function AllievoDettaglio() {
   // State per pagamenti extra
   const [saggio, setSaggio] = useState([])
   const [vestiti, setVestiti] = useState([])
+  const [iscrizione, setIscrizione] = useState(null)
   
-  // State per gestione iscrizione
-  const [iscrizioneData, setIscrizioneData] = useState('')
-  const [iscrizioneImporto, setIscrizioneImporto] = useState('')
-  
-  // State per form saggio (per ogni tranche)
-  const [saggioForm, setSaggioForm] = useState({
-    1: { importo: '', data: '' },
-    2: { importo: '', data: '' },
-    3: { importo: '', data: '' },
-    4: { importo: '', data: '' }
-  })
+  // State per form iscrizione
+  const [showIscrizioneForm, setShowIscrizioneForm] = useState(false)
+  const [nuovaIscrizione, setNuovaIscrizione] = useState({ data_pagamento: '', importo: '', stato: 'non_pagato' })
   
   // State per form vestiti
   const [showVestitiForm, setShowVestitiForm] = useState(false)
   const [nuovoVestito, setNuovoVestito] = useState({ descrizione: '', importo: '', stato: 'non_pagato' })
+  
+  // State per form tranche
+  const [showTrancheForm, setShowTrancheForm] = useState({ 1: false, 2: false, 3: false, 4: false })
+  const [nuoveTranche, setNuoveTranche] = useState({
+    1: { data_pagamento: '', importo: '', stato: 'non_pagato' },
+    2: { data_pagamento: '', importo: '', stato: 'non_pagato' },
+    3: { data_pagamento: '', importo: '', stato: 'non_pagato' },
+    4: { data_pagamento: '', importo: '', stato: 'non_pagato' }
+  })
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -171,51 +173,55 @@ function AllievoDettaglio() {
     }
   }
 
-  // Carica pagamenti extra (saggio e vestiti)
-  const loadPagamentiExtra = async () => {
-    if (!profile?.id) return
-    
-    try {
-      // Carica pagamenti saggio
-      const { data: saggioData, error: saggioError } = await supabase
-        .from('pagamenti')
-        .select('*')
-        .eq('allievo_id', profile.id)
-        .eq('categoria', 'saggio')
-      
-      if (saggioError) {
-        console.error('Errore caricamento saggio:', saggioError)
-      } else {
-        setSaggio(saggioData || [])
-        // Popola il form del saggio con i dati esistenti
-        const newSaggioForm = { ...saggioForm }
-        saggioData?.forEach(pagamento => {
-          if (pagamento.tranche && newSaggioForm[pagamento.tranche]) {
-            newSaggioForm[pagamento.tranche] = {
-              importo: pagamento.importo || '',
-              data: pagamento.data_scadenza || ''
-            }
-          }
-        })
-        setSaggioForm(newSaggioForm)
-      }
-      
-      // Carica pagamenti vestiti
-      const { data: vestitiData, error: vestitiError } = await supabase
-        .from('pagamenti')
-        .select('*')
-        .eq('allievo_id', profile.id)
-        .eq('categoria', 'vestiti')
-      
-      if (vestitiError) {
-        console.error('Errore caricamento vestiti:', vestitiError)
-      } else {
-        setVestiti(vestitiData || [])
-      }
-    } catch (err) {
-      console.error('Errore caricamento pagamenti extra:', err)
+  // Carica pagamenti extra (iscrizione, saggio e vestiti)
+const loadPagamentiExtra = async () => {
+  if (!profile?.id) return
+
+  try {
+    // 🔹 ISCRIZIONE
+    const { data: iscrizioneData, error: iscrizioneError } = await supabase
+      .from('pagamenti')
+      .select('*')
+      .eq('allievo_id', profile.id)
+      .eq('categoria', 'iscrizione')
+      .maybeSingle()
+
+    if (iscrizioneError) {
+      console.error('Errore caricamento iscrizione:', iscrizioneError)
+    } else {
+      setIscrizione(iscrizioneData || null)
     }
+
+    // 🔹 SAGGIO
+    const { data: saggioData, error: saggioError } = await supabase
+      .from('pagamenti')
+      .select('*')
+      .eq('allievo_id', profile.id)
+      .eq('categoria', 'saggio')
+
+    if (saggioError) {
+      console.error('Errore caricamento saggio:', saggioError)
+    } else {
+      setSaggio(saggioData || [])
+    }
+
+    // 🔹 VESTITI
+    const { data: vestitiData, error: vestitiError } = await supabase
+      .from('pagamenti')
+      .select('*')
+      .eq('allievo_id', profile.id)
+      .eq('categoria', 'vestiti')
+
+    if (vestitiError) {
+      console.error('Errore caricamento vestiti:', vestitiError)
+    } else {
+      setVestiti(vestitiData || [])
+    }
+  } catch (err) {
+    console.error('Errore caricamento pagamenti extra:', err)
   }
+}
+
 
   // Gestisce il click sui bottoni dei mesi - CICLO A TRE STATI
   const handleMeseClick = async (mese) => {
@@ -230,8 +236,7 @@ function AllievoDettaglio() {
         // Da grigio (non_dovuto) a rosso (scaduto)
         nuovoStato = 'scaduto'
         nuovoImporto = defaultImporto // Usa importo di default
-      } else if (pagamento.stato === 'scaduto' || pagamento.stato === 'non_pagato') {
-        // Da rosso (scaduto) a verde (pagato)
+      } else if (pagamento.stato === 'scaduto' || pagamento.stato === 'non_pagato') {        // Da rosso (scaduto) a verde (pagato)
         nuovoStato = 'pagato'
         nuovoImporto = pagamento?.importo || defaultImporto // Mantiene importo esistente o usa default
       } else if (pagamento.stato === 'pagato') {
@@ -240,33 +245,19 @@ function AllievoDettaglio() {
         nuovoImporto = null // Nessun importo per non_dovuto
       }
       
-      if (pagamento) {
-        // Update esistente
-        const { error } = await supabase
-          .from("pagamenti")
-          .update({
-            stato: nuovoStato,
-            importo: nuovoImporto,
-            anno: selectedAnno // AGGIUNTO: passa l'anno anche nell'update
-          })
-          .eq("id", pagamento.id)
-        
-        if (error) throw error
-      }
-      else {
-        // Insert nuovo - INCLUDE ANNO
-        const { error } = await supabase
-          .from("pagamenti")
-          .insert({
-            allievo_id: id,
-            mese: mese,
-            anno: selectedAnno,
-            stato: nuovoStato,
-            importo: nuovoImporto,
-          })
-        
-        if (error) throw error
-      }
+      // Upsert unico per gestire sia INSERT che UPDATE
+      const { error } = await supabase
+        .from("pagamenti")
+        .upsert({
+          allievo_id: id,
+          mese: mese,
+          anno: selectedAnno,
+          categoria: 'mensile',
+          stato: nuovoStato,
+          importo: nuovoImporto
+        }, { onConflict: ['allievo_id', 'mese', 'anno'] })
+      
+      if (error) throw error
       
       // Aggiorna stato locale
       setPagamenti(prev => {
@@ -364,91 +355,44 @@ if (pagamento.stato === 'non_pagato') {
     }
   }
   
-  // Gestisce il pagamento iscrizione con ciclo a tre stati
-  const handleIscrizioneChange = async (importo, data, stato) => {
-    try {
-      const iscrizionePagamento = pagamenti.find(p => p.categoria === 'iscrizione')
-      
-      if (iscrizionePagamento) {
-        // Update esistente
-        const { error } = await supabase
-          .from('pagamenti')
-          .update({ importo, data_scadenza: data, stato })
-          .eq('id', iscrizionePagamento.id)
-        
-        if (error) throw error
-      } else {
-        // Insert nuovo
-        const { error } = await supabase
-          .from('pagamenti')
-          .insert({
-            allievo_id: profile.id,
-            categoria: 'iscrizione',
-            importo,
-            data_scadenza: data,
-            stato
-          })
-        
-        if (error) throw error
-      }
-      
-      // Ricarica pagamenti
-      loadPagamenti()
-    } catch (err) {
-      console.error('Errore gestione iscrizione:', err)
-    }
-  }
+
   
-  // Gestisce il click sull'iscrizione con ciclo a tre stati
-  const handleIscrizioneClick = async () => {
-    const iscrizionePagamento = pagamenti.find(p => p.categoria === 'iscrizione')
-    let nuovoStato
-    
-    if (!iscrizionePagamento || iscrizionePagamento.stato === 'non_dovuto') {
-      nuovoStato = 'scaduto'
-    } else if (iscrizionePagamento.stato === 'scaduto') {
-      nuovoStato = 'pagato'
-    } else {
-      nuovoStato = 'non_dovuto'
-    }
-    
-    const importo = parseFloat(iscrizioneImporto) || 0
-    const data = iscrizioneData || null
-    
-    await handleIscrizioneChange(importo, data, nuovoStato)
-  }
-  
-  // Gestisce il click sul saggio con ciclo a tre stati
-  const handleSaggioClick = async (tranche, importo, data) => {
+  // Gestisce il cambio stato iscrizione
+  const handleIscrizioneStatoChange = async (iscrizioneId, nuovoStato) => {
     try {
-      const pagamento = saggio.find(p => p.tranche === tranche)
-      let nuovoStato
-      
-      if (!pagamento || pagamento.stato === 'non_dovuto') {
-        nuovoStato = 'scaduto'
-      } else if (pagamento.stato === 'scaduto') {
-        nuovoStato = 'pagato'
-      } else {
-        nuovoStato = 'non_dovuto'
-      }
-      
       const { error } = await supabase
         .from('pagamenti')
-        .upsert({
-          categoria: 'saggio',
-          tranche: tranche,
-          allievo_id: profile.id,
-          importo: parseFloat(importo) || 0,
-          data_scadenza: data || null,
-          stato: nuovoStato
-        })
+        .update({ stato: nuovoStato })
+        .eq('id', iscrizioneId)
       
       if (error) throw error
       
-      // Ricarica pagamenti saggio
+      // Aggiorna stato locale
+      setIscrizione(prev => ({
+        ...prev,
+        stato: nuovoStato
+      }))
+    } catch (err) {
+      console.error('Errore cambio stato iscrizione:', err)
+    }
+  }
+  
+
+  
+  // Gestisce il cambio stato tranche saggio
+  const handleTrancheStatoChange = async (trancheId, nuovoStato) => {
+    try {
+      const { error } = await supabase
+        .from('pagamenti')
+        .update({ stato: nuovoStato })
+        .eq('id', trancheId)
+      
+      if (error) throw error
+      
+      // Ricarica pagamenti
       loadPagamentiExtra()
     } catch (err) {
-      console.error('Errore gestione saggio:', err)
+      console.error('Errore cambio stato tranche:', err)
     }
   }
   
@@ -465,7 +409,17 @@ if (pagamento.stato === 'non_pagato') {
           stato: nuovoVestito.stato
         })
       
-      if (error) throw error
+      if (error) {
+        setMessage({ type: 'error', text: `Errore nell'aggiunta del vestito: ${error.message}` })
+        throw error
+      }
+      
+      setMessage({ type: 'success', text: 'Vestito aggiunto con successo!' })
+      
+      // Nascondi il messaggio dopo 3 secondi
+      setTimeout(() => {
+        setMessage({ type: '', text: '' })
+      }, 3000)
       
       // Reset form
       setNuovoVestito({ descrizione: '', importo: '', stato: 'non_pagato' })
@@ -475,6 +429,7 @@ if (pagamento.stato === 'non_pagato') {
       loadPagamentiExtra()
     } catch (err) {
       console.error('Errore aggiunta vestito:', err)
+      setMessage({ type: 'error', text: 'Errore nell\'aggiunta del vestito. Controlla i dati inseriti.' })
     }
   }
   
@@ -492,6 +447,178 @@ if (pagamento.stato === 'non_pagato') {
       loadPagamentiExtra()
     } catch (err) {
       console.error('Errore cambio stato vestito:', err)
+    }
+  }
+
+  // Gestisce l'aggiornamento di importo e data dell'iscrizione
+  const handleIscrizioneUpdate = async (iscrizioneId, campo, valore) => {
+    try {
+      const updateData = {}
+      if (campo === 'importo') {
+        updateData.importo = parseFloat(valore)
+      } else if (campo === 'data_pagamento') {
+        updateData.data_pagamento = valore || null
+      }
+      
+      const { error } = await supabase
+        .from('pagamenti')
+        .update(updateData)
+        .eq('id', iscrizioneId)
+      
+      if (error) throw error
+      
+      // Aggiorna stato locale
+      setIscrizione(prev => ({
+        ...prev,
+        [campo]: campo === 'importo' ? parseFloat(valore) : valore
+      }))
+    } catch (err) {
+      console.error('Errore aggiornamento iscrizione:', err)
+    }
+  }
+
+  // Gestisce l'aggiornamento di importo e data delle tranche
+  const handleTrancheUpdate = async (trancheId, campo, valore) => {
+    try {
+      const updateData = {}
+      if (campo === 'importo') {
+        updateData.importo = parseFloat(valore)
+      } else if (campo === 'data') {
+        updateData.data_pagamento = valore || null
+      }
+      
+      const { error } = await supabase
+        .from('pagamenti')
+        .update(updateData)
+        .eq('id', trancheId)
+      
+      if (error) throw error
+      
+      // Ricarica saggio
+      loadPagamentiExtra()
+    } catch (err) {
+      console.error('Errore aggiornamento tranche:', err)
+    }
+  }
+
+  // Gestisce l'aggiornamento di importo e descrizione dei vestiti
+  const handleVestitoUpdate = async (vestitoId, campo, valore) => {
+    try {
+      const updateData = {}
+      if (campo === 'importo') {
+        updateData.importo = parseFloat(valore)
+      } else if (campo === 'descrizione') {
+        updateData.note = valore
+      }
+      
+      const { error } = await supabase
+        .from('pagamenti')
+        .update(updateData)
+        .eq('id', vestitoId)
+      
+      if (error) throw error
+      
+      // Ricarica vestiti
+      loadPagamentiExtra()
+    } catch (err) {
+      console.error('Errore aggiornamento vestito:', err)
+    }
+  }
+  
+  // Gestisce l'aggiunta di una nuova iscrizione
+  const handleAggiungiIscrizione = async () => {
+    console.log('[DEBUG] Tentativo aggiunta iscrizione:', {
+      categoria: 'iscrizione',
+      allievo_id: profile.id,
+      data_pagamento: nuovaIscrizione.data_pagamento,
+      importo: parseFloat(nuovaIscrizione.importo),
+      stato: nuovaIscrizione.stato
+    })
+    
+    try {
+      const { data, error } = await supabase
+        .from('pagamenti')
+        .insert({
+          categoria: 'iscrizione',
+          allievo_id: profile.id,
+          data_pagamento: nuovaIscrizione.data_pagamento,
+          importo: parseFloat(nuovaIscrizione.importo),
+          stato: nuovaIscrizione.stato
+        })
+        .select()
+      
+      console.log('[DEBUG] Risultato inserimento:', { data, error })
+      
+      if (error) {
+        console.error('[DEBUG] Errore inserimento:', error)
+        setMessage({ type: 'error', text: `Errore nell'aggiunta dell'iscrizione: ${error.message}` })
+        throw error
+      }
+      
+      console.log('[DEBUG] Iscrizione aggiunta con successo:', data)
+      setMessage({ type: 'success', text: 'Iscrizione aggiunta con successo!' })
+      
+      // Aggiorna immediatamente lo stato locale
+      if (data && data[0]) {
+        setIscrizione(data[0])
+      }
+      
+      // Nascondi il messaggio dopo 3 secondi
+      setTimeout(() => {
+        setMessage({ type: '', text: '' })
+      }, 3000)
+      
+      // Reset form
+      setNuovaIscrizione({ data_pagamento: '', importo: '', stato: 'non_pagato' })
+      setShowIscrizioneForm(false)
+    } catch (err) {
+      console.error('[DEBUG] Errore completo aggiunta iscrizione:', err)
+      setMessage({ type: 'error', text: 'Errore nell\'aggiunta dell\'iscrizione. Controlla i dati inseriti.' })
+    }
+  }
+  
+  // Gestisce l'aggiunta di una nuova tranche
+  const handleAggiungiTranche = async (trancheNumero) => {
+    try {
+      const trancheData = nuoveTranche[trancheNumero]
+      const { data, error } = await supabase
+        .from('pagamenti')
+        .insert({
+          categoria: 'saggio',
+          sottocategoria: `tranche_${trancheNumero}`,
+          allievo_id: profile.id,
+          data_pagamento: trancheData.data_pagamento,
+          importo: parseFloat(trancheData.importo),
+          stato: trancheData.stato
+        })
+        .select()
+      
+      if (error) {
+        setMessage({ type: 'error', text: `Errore nell'aggiunta della tranche ${trancheNumero}: ${error.message}` })
+        throw error
+      }
+      
+      setMessage({ type: 'success', text: `Tranche ${trancheNumero} aggiunta con successo!` })
+      
+      // Aggiorna immediatamente lo stato locale
+      if (data && data.length > 0) {
+        setSaggio(prev => [...prev, ...data])
+      }
+      
+      // Nascondi il messaggio dopo 3 secondi
+      setTimeout(() => {
+        setMessage({ type: '', text: '' })
+      }, 3000)
+      
+      // Reset form per questa tranche
+      setNuoveTranche(prev => ({
+        ...prev,
+        [trancheNumero]: { data_pagamento: '', importo: '', stato: 'non_pagato' }
+      }))
+      setShowTrancheForm(prev => ({ ...prev, [trancheNumero]: false }))
+    } catch (err) {
+      console.error('Errore aggiunta tranche:', err)
+      setMessage({ type: 'error', text: `Errore nell'aggiunta della tranche ${trancheNumero}. Controlla i dati inseriti.` })
     }
   }
   // Carica i dati del profilo utente tramite id
@@ -834,52 +961,106 @@ if (pagamento.stato === 'non_pagato') {
               </div>
             )}
             
-            {/* Sezione Iscrizione */}
+            {/* Iscrizione */}
             <div className="mt-6">
-              <h3 className="text-xl font-semibold text-white mb-3">Iscrizione</h3>
-              {(() => {
-                const iscrizionePagamento = pagamenti.find(p => p.categoria === "iscrizione")
-                return (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <input
-                        type="number"
-                        placeholder="Importo (€)"
-                        value={iscrizioneImporto}
-                        onChange={(e) => setIscrizioneImporto(e.target.value)}
-                        className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-xl font-semibold text-white">Iscrizione</h3>
+                {!iscrizione && (
+                  <button
+                    onClick={() => setShowIscrizioneForm(!showIscrizioneForm)}
+                    className="px-3 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm transition-colors"
+                  >
+                    {showIscrizioneForm ? 'Annulla' : 'Aggiungi'}
+                  </button>
+                )}
+              </div>
+              
+              {showIscrizioneForm && !iscrizione && (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-4 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input
+                        type="date"
+                        placeholder="Data scadenza"
+                        value={nuovaIscrizione.data_pagamento}
+                        onChange={(e) => setNuovaIscrizione(prev => ({ ...prev, data_pagamento: e.target.value }))}
+                        className="px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50"
                       />
+                    <input
+                      type="number"
+                      placeholder="Importo"
+                      step="0.01"
+                      value={nuovaIscrizione.importo}
+                      onChange={(e) => setNuovaIscrizione(prev => ({ ...prev, importo: e.target.value }))}
+                      className="px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50"
+                    />
+                    <select
+                      value={nuovaIscrizione.stato}
+                      onChange={(e) => setNuovaIscrizione(prev => ({ ...prev, stato: e.target.value }))}
+                      className="px-3 py-2 rounded bg-white/10 border border-white/20 text-white"
+                    >
+                      <option value="non_pagato">Non pagato</option>
+                      <option value="pagato">Pagato</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={handleAggiungiIscrizione}
+                    disabled={!nuovaIscrizione.data_pagamento || !nuovaIscrizione.importo}
+                    className="mt-3 px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 text-white rounded-lg transition-colors"
+                  >
+                    Aggiungi
+                  </button>
+                </div>
+              )}
+              
+              {iscrizione ? (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <span className="block text-white/80 text-sm font-medium mb-2">Data scadenza:</span>
                       <input
                         type="date"
-                        value={iscrizioneData}
-                        onChange={(e) => setIscrizioneData(e.target.value)}
-                        className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
+                        value={iscrizione.data_pagamento?.split('T')[0] || ''}
+                        onChange={(e) => handleIscrizioneUpdate(iscrizione.id, 'data_pagamento', e.target.value)}
+                        className="w-full px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
+                    </div>
+                    <div>
+                      <span className="block text-white/80 text-sm font-medium mb-2">Importo:</span>
+                      <input
+                        type="number"
+                        value={iscrizione.importo || ''}
+                        onChange={(e) => handleIscrizioneUpdate(iscrizione.id, 'importo', e.target.value)}
+                        className="w-full px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="Importo"
+                        step="0.01"
+                        min="0"
+                      />
+                    </div>
+                    <div className="flex flex-col justify-between">
+                      <div>
+                        <span className="block text-white/80 text-sm font-medium mb-2">Stato:</span>
+                        <p className={`text-lg font-semibold mb-2 ${
+                          iscrizione.stato === 'pagato' ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {iscrizione.stato === 'pagato' ? 'Pagato' : 'Non pagato'}
+                        </p>
+                      </div>
                       <button
-                        onClick={handleIscrizioneClick}
-                        className="px-3 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white"
+                        onClick={() => handleIscrizioneStatoChange(iscrizione.id, iscrizione.stato === 'pagato' ? 'non_pagato' : 'pagato')}
+                        className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
+                          iscrizione.stato === 'pagato' 
+                            ? 'bg-red-500 hover:bg-red-600 text-white' 
+                            : 'bg-green-500 hover:bg-green-600 text-white'
+                        }`}
                       >
-                        Aggiorna stato
+                        {iscrizione.stato === 'pagato' ? 'Segna non pagato' : 'Segna pagato'}
                       </button>
                     </div>
-
-                    <div className={`px-3 py-2 rounded-lg text-center font-medium ${
-                      iscrizionePagamento?.stato === 'pagato'
-                        ? 'bg-green-500 text-white'
-                        : iscrizionePagamento?.stato === 'scaduto'
-                        ? 'bg-red-500 text-white'
-                        : 'bg-gray-500 text-white'
-                    }`}>
-                      {iscrizionePagamento?.stato === 'pagato'
-                        ? 'Pagato'
-                        : iscrizionePagamento?.stato === 'scaduto'
-                        ? 'Non pagato'
-                        : 'Non dovuto'}
-                    </div>
                   </div>
-                )
-              })()
-            }
+                </div>
+              ) : !showIscrizioneForm && (
+                <p className="text-white/70">Iscrizione non trovata</p>
+              )}
             </div>
             
             {/* Legenda */}
@@ -907,51 +1088,121 @@ if (pagamento.stato === 'non_pagato') {
 
             {/* Saggio */}
             <div>
-              <h3 className="text-xl font-semibold text-white mb-3">Quota Saggio</h3>
+              <h3 className="text-xl font-semibold text-white mb-3">Quota Saggio (4 tranche)</h3>
               <div className="space-y-4">
                 {[1,2,3,4].map(tranche => {
-                  const pagamento = saggio.find(p => p.tranche === tranche)
+                  const pagamento = saggio.find(p => p.sottocategoria === `tranche_${tranche}`)
                   return (
                     <div key={tranche} className="bg-white/5 border border-white/20 rounded-lg p-4">
-                      <h4 className="text-white font-medium mb-3">Tranche {tranche}</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center mb-2">
-                        <input
-                          type="number"
-                          placeholder="Importo (€)"
-                          value={saggioForm[tranche]?.importo || ""}
-                          onChange={(e) => setSaggioForm(prev => ({
-                            ...prev,
-                            [tranche]: { ...prev[tranche], importo: e.target.value }
-                          }))}
-                          className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
-                        />
-                        <input
-                          type="date"
-                          value={saggioForm[tranche]?.data || ""}
-                          onChange={(e) => setSaggioForm(prev => ({
-                            ...prev,
-                            [tranche]: { ...prev[tranche], data: e.target.value }
-                          }))}
-                          className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleSaggioClick(tranche, saggioForm[tranche]?.importo, saggioForm[tranche]?.data)}
-                          className={`w-full px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
-                            pagamento?.stato === 'pagato'
-                              ? 'bg-green-500 text-white'
-                              : pagamento?.stato === 'scaduto'
-                              ? 'bg-red-500 text-white'
-                              : 'bg-gray-500 text-white'
-                          }`}
-                        >
-                          {pagamento?.stato === 'pagato'
-                            ? 'Pagato'
-                            : pagamento?.stato === 'scaduto'
-                            ? 'Non pagato'
-                            : 'Non dovuto'}
-                        </button>
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-white font-medium">Tranche {tranche}</h4>
                       </div>
+                      
+                      {pagamento ? (
+                        <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <span className="block text-white/80 text-sm font-medium mb-2">Importo:</span>
+                              <input
+                                type="number"
+                                placeholder="Importo"
+                                value={pagamento.importo}
+                                onChange={(e) => handleTrancheUpdate(pagamento.id, 'importo', e.target.value)}
+                                className="w-full px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                step="0.01"
+                                min="0"
+                              />
+                            </div>
+                            <div>
+                              <span className="block text-white/80 text-sm font-medium mb-2">Data scadenza:</span>
+                              <input
+                                type="date"
+                                value={pagamento.data_pagamento?.split('T')[0] || ''}
+                                onChange={(e) => handleTrancheUpdate(pagamento.id, 'data', e.target.value)}
+                                className="w-full px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                            </div>
+                            <div className="flex flex-col justify-between">
+                              <div>
+                                <span className="block text-white/80 text-sm font-medium mb-2">Stato:</span>
+                                <p className={`text-lg font-semibold mb-2 ${
+                                  pagamento.stato === 'pagato' ? 'text-green-400' : 'text-red-400'
+                                }`}>
+                                  {pagamento.stato === 'pagato' ? 'Pagato' : 'Non pagato'}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleTrancheStatoChange(pagamento.id, pagamento.stato === 'pagato' ? 'non_pagato' : 'pagato')}
+                                className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
+                                  pagamento.stato === 'pagato' 
+                                    ? 'bg-red-500 hover:bg-red-600 text-white' 
+                                    : 'bg-green-500 hover:bg-green-600 text-white'
+                                }`}
+                              >
+                                {pagamento.stato === 'pagato' ? 'Segna non pagato' : 'Segna pagato'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                          <div className="flex justify-between items-center mb-3">
+                            <p className="text-white/60">Tranche non trovata</p>
+                            <button
+                              onClick={() => setShowTrancheForm(prev => ({ ...prev, [tranche]: !prev[tranche] }))}
+                              className="px-3 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm transition-colors"
+                            >
+                              {showTrancheForm[tranche] ? 'Annulla' : 'Aggiungi'}
+                            </button>
+                          </div>
+                          
+                          {showTrancheForm[tranche] && (
+                            <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <input
+                                  type="date"
+                                  placeholder="Data scadenza"
+                                  value={nuoveTranche[tranche].data_pagamento}
+                                  onChange={(e) => setNuoveTranche(prev => ({
+                                    ...prev,
+                                    [tranche]: { ...prev[tranche], data_pagamento: e.target.value }
+                                  }))}
+                                  className="px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50"
+                                />
+                                <input
+                                  type="number"
+                                  placeholder="Importo"
+                                  step="0.01"
+                                  value={nuoveTranche[tranche].importo}
+                                  onChange={(e) => setNuoveTranche(prev => ({
+                                    ...prev,
+                                    [tranche]: { ...prev[tranche], importo: e.target.value }
+                                  }))}
+                                  className="px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50"
+                                />
+                                <select
+                                  value={nuoveTranche[tranche].stato}
+                                  onChange={(e) => setNuoveTranche(prev => ({
+                                    ...prev,
+                                    [tranche]: { ...prev[tranche], stato: e.target.value }
+                                  }))}
+                                  className="px-3 py-2 rounded bg-white/10 border border-white/20 text-white"
+                                >
+                                  <option value="non_pagato">Non pagato</option>
+                                  <option value="pagato">Pagato</option>
+                                </select>
+                              </div>
+                              <button
+                                onClick={() => handleAggiungiTranche(tranche)}
+                                disabled={!nuoveTranche[tranche].data_pagamento || !nuoveTranche[tranche].importo}
+                                className="mt-3 px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 text-white rounded-lg transition-colors"
+                              >
+                                Aggiungi
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -1012,18 +1263,51 @@ if (pagamento.stato === 'non_pagato') {
               ) : (
                 <ul className="space-y-2">
                   {vestiti.map(v => (
-                    <li key={v.id} className="bg-white/5 border border-white/10 rounded-lg p-3 flex justify-between items-center">
-                      <span className="text-white">€{v.importo} – {v.note || "Vestiti/Accessori"}</span>
-                      <button
-                        onClick={() => handleVestitoStatoChange(v.id, v.stato === 'pagato' ? 'non_pagato' : 'pagato')}
-                        className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
-                          v.stato === "pagato" 
-                            ? "bg-green-500 hover:bg-green-600 text-white" 
-                            : "bg-red-500 hover:bg-red-600 text-white"
-                        }`}
-                      >
-                        {v.stato === 'pagato' ? 'Pagato' : 'Non pagato'}
-                      </button>
+                    <li key={v.id} className="bg-white/5 border border-white/10 rounded-lg p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <span className="block text-white/80 text-sm font-medium mb-2">Descrizione:</span>
+                          <input
+                            type="text"
+                            value={v.note || ''}
+                            onChange={(e) => handleVestitoUpdate(v.id, 'descrizione', e.target.value)}
+                            className="w-full px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Descrizione"
+                          />
+                        </div>
+                        <div>
+                          <span className="block text-white/80 text-sm font-medium mb-2">Importo:</span>
+                          <input
+                            type="number"
+                            value={v.importo || ''}
+                            onChange={(e) => handleVestitoUpdate(v.id, 'importo', e.target.value)}
+                            className="w-full px-3 py-2 rounded bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Importo"
+                            step="0.01"
+                            min="0"
+                          />
+                        </div>
+                        <div className="flex flex-col justify-between">
+                          <div>
+                            <span className="block text-white/80 text-sm font-medium mb-2">Stato:</span>
+                            <p className={`text-lg font-semibold mb-2 ${
+                              v.stato === 'pagato' ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {v.stato === 'pagato' ? 'Pagato' : 'Non pagato'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleVestitoStatoChange(v.id, v.stato === 'pagato' ? 'non_pagato' : 'pagato')}
+                            className={`px-3 py-1 rounded text-sm font-semibold transition-colors ${
+                              v.stato === 'pagato' 
+                                ? 'bg-red-500 hover:bg-red-600 text-white' 
+                                : 'bg-green-500 hover:bg-green-600 text-white'
+                            }`}
+                          >
+                            {v.stato === 'pagato' ? 'Segna non pagato' : 'Segna pagato'}
+                          </button>
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -1336,7 +1620,7 @@ if (pagamento.stato === 'non_pagato') {
                       {course.corso}
                     </h4>
                     <p className="text-indigo-400 font-medium">
-                      Prezzo: €{course.prezzo}/mese
+                      €{course.prezzo}
                     </p>
                   </div>
                 ))}

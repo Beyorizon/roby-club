@@ -16,18 +16,18 @@ function AggiungiFiglio() {
     cellulare: "",
     taglia_tshirt: "",
     taglia_pantalone: "",
-    numero_scarpe: "",
-    corso: ""
+    numero_scarpe: ""
   })
 
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
+  const [errors, setErrors] = useState({})
 
   useEffect(() => {
     const loadData = async () => {
-      // Trova il record del genitore loggato
+      // Trova il record del genitore loggato in 'utenti'
       const { data: g } = await supabase
-        .from("genitori")
+        .from("utenti")
         .select("id")
         .eq("auth_id", user.id)
         .single()
@@ -45,29 +45,40 @@ function AggiungiFiglio() {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
+  const validateForm = () => {
+    const errors = {}
+    if (!formData.nome.trim()) errors.nome = "Nome obbligatorio"
+    if (!formData.cognome.trim()) errors.cognome = "Cognome obbligatorio"
+    if (!formData.data_nascita) errors.data_nascita = "Data di nascita obbligatoria"
+    return errors
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!genitore) return
 
+    // Validazione
+    const validationErrors = validateForm()
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors)
+      return
+    }
+    
+    setErrors({})
+
     try {
       setSaving(true)
       const { error } = await supabase.from("utenti").insert({
-  nome: formData.nome,
-  cognome: formData.cognome,
-  data_nascita: formData.data_nascita
-    ? (() => {
-        const [gg, mm, yyyy] = formData.data_nascita.split("/")
-        return `${yyyy}-${mm}-${gg}`
-      })()
-    : null,
-  cellulare: formData.cellulare || null,
-  taglia_tshirt: formData.taglia_tshirt || null,
-  taglia_pantalone: formData.taglia_pantalone || null,
-  numero_scarpe: formData.numero_scarpe ? parseInt(formData.numero_scarpe, 10) : null,
-  corso_1: formData.corso || null,
-  ruolo: "allievo",
-  genitore_id: genitore.id
-})
+        nome: formData.nome,
+        cognome: formData.cognome,
+        data_nascita: formData.data_nascita,
+        cellulare: formData.cellulare || null,
+        taglia_tshirt: formData.taglia_tshirt || null,
+        taglia_pantalone: formData.taglia_pantalone || null,
+        numero_scarpe: formData.numero_scarpe ? parseInt(formData.numero_scarpe, 10) : null,
+        ruolo: "allievo",
+        genitore_id: genitore.id
+      })
 
       if (error) throw error
 
@@ -97,20 +108,25 @@ function AggiungiFiglio() {
             <div>
               <label className="text-white/80 text-sm font-medium mb-2 block">Nome</label>
               <input type="text" name="nome" value={formData.nome} onChange={handleInputChange}
-                required className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white"/>
+                required className={`w-full px-4 py-3 rounded-xl bg-white/10 border text-white ${
+                  errors.nome ? 'border-red-500' : 'border-white/20'
+                }`}/>
             </div>
             <div>
               <label className="text-white/80 text-sm font-medium mb-2 block">Cognome</label>
               <input type="text" name="cognome" value={formData.cognome} onChange={handleInputChange}
-                required className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white"/>
+                required className={`w-full px-4 py-3 rounded-xl bg-white/10 border text-white ${
+                  errors.cognome ? 'border-red-500' : 'border-white/20'
+                }`}/>
             </div>
           </div>
 
           <div>
-            <label className="text-white/80 text-sm font-medium mb-2 block">Data di nascita (gg/mm/aaaa)</label>
-            <input type="text" name="data_nascita" value={formData.data_nascita} onChange={handleInputChange}
-              placeholder="00/00/0000" pattern="\d{2}/\d{2}/\d{4}"
-              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white"/>
+            <label className="text-white/80 text-sm font-medium mb-2 block">Data di nascita</label>
+            <input type="date" name="data_nascita" value={formData.data_nascita} onChange={handleInputChange}
+              required className={`w-full px-4 py-3 rounded-xl bg-white/10 border text-white ${
+                errors.data_nascita ? 'border-red-500' : 'border-white/20'
+              }`}/>
           </div>
 
           <div>

@@ -26,42 +26,32 @@ function Login() {
         email: formData.email,
         password: formData.password
       })
-
       if (error) throw error
-      const user = data?.user
-      if (!user) throw new Error("Login fallito")
 
-      // 1. Controllo genitore
-      const { data: parent } = await supabase
-        .from("genitori")
-        .select("id")
-        .eq("auth_id", user.id)
-        .maybeSingle()
+      const session = data?.session
+      if (!session?.user?.id) throw new Error("Sessione non valida")
 
-      if (parent) {
-        navigate("/dashboard-genitore", { replace: true })
-        return
-      }
-
-      // 2. Controllo allievo
-      const { data: student } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from("utenti")
-        .select("id, ruolo")
-        .eq("auth_id", user.id)
-        .maybeSingle()
+        .select("ruolo")
+        .eq("auth_id", session.user.id)
+        .single()
 
-      if (student?.ruolo === "allievo") {
-        navigate("/dashboard-allievo", { replace: true })
+      if (userError) throw userError
+      if (userData?.ruolo === "admin") {
+        navigate("/admin/allievi", { replace: true })
+        return
+      }
+      if (userData?.ruolo === "genitore" || userData?.ruolo === "allievo") {
+        navigate("/dashboard-utente", { replace: true })
         return
       }
 
-      // 3. Controllo admin
-      if (student?.ruolo === "admin") {
-        navigate("/admin", { replace: true })
-        return
+      if (!userData) {
+        setError("Utente non trovato nella tabella 'utenti'")
+      } else {
+        setError(`Ruolo non valido: ${userData.ruolo}`)
       }
-
-      setError("Account non associato a nessun ruolo valido")
     } catch (err) {
       console.error(err)
       setError("Credenziali non valide. Riprova.")

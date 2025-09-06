@@ -15,8 +15,7 @@ import Orari from './pages/Orari.jsx'
 import Notizie from './pages/Notizie.jsx'
 
 // Dashboard
-import DashboardAllievo from './pages/DashboardAllievo.jsx'
-import DashboardGenitore from './pages/DashboardGenitore.jsx'
+import DashboardUtente from './pages/DashboardUtente.jsx'
 import AggiungiFiglio from './pages/AggiungiFiglio.jsx'
 import DashboardFiglio from './pages/DashboardFiglio.jsx'
 
@@ -46,23 +45,16 @@ function App() {
               <Route path="/orari" element={<Orari />} />
               <Route path="/notizie" element={<Notizie />} />
 
-              {/* Dashboard per utenti autenticati */}
+              {/* Dashboard unificata per utenti autenticati */}
               <Route 
-                path="/dashboard-allievo" 
+                path="/dashboard-utente" 
                 element={
                   <UserGuard>
-                    <DashboardAllievo />
+                    <DashboardUtente />
                   </UserGuard>
                 } 
               />
-              <Route 
-                path="/dashboard-genitore" 
-                element={
-                  <UserGuard>
-                    <DashboardGenitore />
-                  </UserGuard>
-                } 
-              />
+              {/* Redirect delle vecchie route */}
               <Route 
                 path="/aggiungi-figlio" 
                 element={

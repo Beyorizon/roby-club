@@ -13,13 +13,13 @@ function SignupAllievo() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [info, setInfo] = useState('')
+
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
-    setInfo('')
+
 
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -35,8 +35,7 @@ function SignupAllievo() {
       })
       if (error) throw error
 
-      setInfo('Controlla la tua email per confermare il tuo account.')
-      setTimeout(() => navigate('/login'), 3000)
+      navigate('/dashboard-utente')
     } catch (err) {
       console.error(err)
       setError('Errore durante la registrazione.')
@@ -56,7 +55,7 @@ function SignupAllievo() {
         <h1 className="text-2xl font-bold text-white mb-6 text-center">Registrati come Allievo</h1>
 
         {error && <div className="bg-red-500/20 text-red-200 border border-red-500/40 p-3 rounded mb-4">{error}</div>}
-        {info && <div className="bg-blue-500/20 text-blue-200 border border-blue-500/40 p-3 rounded mb-4">{info}</div>}
+
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="text" name="nome" placeholder="Nome" value={formData.nome} onChange={handleInputChange} required
