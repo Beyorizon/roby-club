@@ -198,7 +198,7 @@ function DashboardUtente() {
         </h1>
 
         {/* NAV TABS */}
-        <div className="flex gap-2 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 flex gap-2 mb-6">
           <button onClick={() => setTab("dati")}
             className={`px-4 py-2 rounded-lg font-semibold ${
               tab === "dati" ? "bg-indigo-600 text-white" : "bg-white/10 text-white/70"}`}>

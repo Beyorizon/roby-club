@@ -881,7 +881,7 @@ if (pagamento.stato === 'non_pagato') {
         </div>
         
         {/* Navigation Tab */}
-        <div className="flex gap-2 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 flex gap-2 mb-6">
           <button
             onClick={() => setTab("profilo")}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${

@@ -23,7 +23,7 @@ export default function AdminLayout() {
 
         {/* Navigation Tabs */}
         <CardGlass className="p-1">
-          <nav className="flex space-x-1">
+          <nav className="grid grid-cols-1 md:grid-cols-3 flex space-x-1">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path || 
                               (item.path === '/admin/allievi' && location.pathname.startsWith('/admin/allievi'))
