@@ -12,6 +12,7 @@ export default function Allievi() {
   const [error, setError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCorso, setSelectedCorso] = useState('')
+  const [selectedTipo, setSelectedTipo] = useState('')
   const [page, setPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [searchTimeout, setSearchTimeout] = useState(null)
@@ -45,7 +46,7 @@ export default function Allievi() {
   }
 
   // Funzione per caricare gli allievi con paginazione, ricerca e filtro corso
-  const loadAllievi = useCallback(async (searchQuery = '', corsoFilter = '', currentPage = 1) => {
+const loadAllievi = useCallback(async (searchQuery = '', corsoFilter = '', tipoFilter = '', currentPage = 1) => {
     setListLoading(true)
     setError('')
     try {
@@ -54,7 +55,7 @@ export default function Allievi() {
 
       let query = supabase
         .from('utenti')
-        .select('id, auth_id, ruolo, nome, cognome', { count: 'exact' })
+        .select('id, auth_id, ruolo, nome, cognome, genitore_id', { count: 'exact' })
         .order('cognome')
         .order('nome')
         .range(from, to)
@@ -68,6 +69,11 @@ export default function Allievi() {
       // Filtro per corso
       if (corsoFilter) {
         query = query.or(`corso_1.eq.${corsoFilter},corso_2.eq.${corsoFilter},corso_3.eq.${corsoFilter},corso_4.eq.${corsoFilter},corso_5.eq.${corsoFilter}`)
+      }
+      
+      // Filtro per tipo (ruolo)
+      if (tipoFilter) {
+        query = query.eq('ruolo', tipoFilter)
       }
 
       const { data, error: queryError, count } = await query
@@ -95,7 +101,7 @@ export default function Allievi() {
   // Caricamento iniziale
   useEffect(() => {
     loadCorsi()
-    loadAllievi('', '', 1)
+    loadAllievi('', '', '', 1)
   }, [])
 
   // Gestione ricerca con debounce (300ms)
@@ -106,7 +112,7 @@ export default function Allievi() {
     
     const timeout = setTimeout(() => {
       setPage(1) // Reset alla prima pagina quando si cerca
-      loadAllievi(searchTerm, selectedCorso, 1)
+      loadAllievi(searchTerm, selectedCorso, selectedTipo, 1)
     }, 300)
     
     setSearchTimeout(timeout)
@@ -114,17 +120,18 @@ export default function Allievi() {
     return () => {
       if (timeout) clearTimeout(timeout)
     }
-  }, [searchTerm, selectedCorso, loadAllievi])
+  }, [searchTerm, selectedCorso, selectedTipo, loadAllievi])
 
   // Gestione cambio pagina
   const handlePageChange = (newPage) => {
     setPage(newPage)
-    loadAllievi(searchTerm, selectedCorso, newPage)
+    loadAllievi(searchTerm, selectedCorso, selectedTipo, newPage)
   }
 
   // Gestione clic su riga allievo
   const handleAllieveClick = (allievo) => {
-    navigate(`/admin/allievi/${allievo.id}`)
+    const isChild = allievo.ruolo === 'allievo' && allievo.genitore_id
+    navigate(isChild ? `/admin/allievi/${allievo.genitore_id}` : `/admin/allievi/${allievo.id}`)
   }
 
   // Calcolo paginazione
@@ -138,15 +145,49 @@ export default function Allievi() {
         <h2 className="text-2xl font-bold text-white">Gestione Allievi</h2>
         <div className="text-sm text-white/60">
           {totalCount > 0 ? (
-            searchTerm || selectedCorso ? 
-              `${allievi.length} risultati di ${totalCount} allievi` :
-              `${startItem}-${endItem} di ${totalCount} allievi`
+           searchTerm || selectedCorso || selectedTipo ? 
+              `${allievi.length} risultati di ${totalCount} utenti` :
+              `${startItem}-${endItem} di ${totalCount} utenti`
           ) : (
-            '0 allievi'
+            '0 utenti'
           )}
         </div>
       </div>
 
+{/* Pulsanti filtro tipo */}
+      <div className="mb-4 flex gap-2">
+        <button
+          onClick={() => setSelectedTipo('')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            selectedTipo === '' 
+              ? 'bg-indigo-600 text-white' 
+              : 'bg-white/10 text-white/70 hover:bg-white/20'
+          }`}
+        >
+          Tutti
+        </button>
+        <button
+          onClick={() => setSelectedTipo('allievo')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            selectedTipo === 'allievo' 
+              ? 'bg-green-600 text-white' 
+              : 'bg-white/10 text-white/70 hover:bg-white/20'
+          }`}
+        >
+          Allievi
+        </button>
+        <button
+          onClick={() => setSelectedTipo('genitore')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            selectedTipo === 'genitore' 
+              ? 'bg-blue-600 text-white' 
+              : 'bg-white/10 text-white/70 hover:bg-white/20'
+          }`}
+        >
+          Genitori
+        </button>
+      </div>
+      
       {/* Barra di ricerca e filtri */}
       <div className="mb-6 flex flex-col sm:flex-row gap-4">
         <input
@@ -184,6 +225,16 @@ export default function Allievi() {
         </div>
       ) : (
         <>
+          {/* Legenda */}
+          {allievi.some(a => a.ruolo === 'allievo' && a.genitore_id) && (
+            <div className="mb-4 flex items-center gap-2 text-sm text-white/70">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-amber-500/20 border border-amber-400/30 rounded"></div>
+                <span>Allievo collegato a genitore</span>
+              </div>
+            </div>
+          )}
+
           {/* Tabella allievi semplificata */}
           {allievi.length > 0 ? (
             <div className="bg-white/5 rounded-xl overflow-hidden border border-white/10">
@@ -200,7 +251,9 @@ export default function Allievi() {
                     {allievi.map((allievo) => (
                       <tr 
                         key={allievo.id} 
-                        className="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors"
+                        className={`border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors ${
+                          allievo.ruolo === 'allievo' && allievo.genitore_id ? 'bg-amber-500/10 border-amber-400/30' : ''
+                        }`}
                         onClick={() => handleAllieveClick(allievo)}
                       >
                         <td className="py-4 px-6">
@@ -214,7 +267,7 @@ export default function Allievi() {
                           </div>
                         </td>
                         <td className="py-4 px-6 text-white">
-                          {allievo.ruolo === "genitore" ? "Genitore" : "Allievo"}
+                          {allievo.ruolo === "genitore" ? "Genitore" : (allievo.genitore_id ? "Allievo G" : "Allievo")}
                         </td>
                       </tr>
                     ))}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthProvider'
 import { supabase } from '../../lib/supabase.js'
 import PaymentGrid from '../../components/PaymentGrid'
@@ -16,9 +16,11 @@ const MESI_ACCADEMICO = [
 function AllievoDettaglio() {
   const { id } = useParams()
   const { isAdmin } = useAuth()
+  const navigate = useNavigate()
   
   // State per i tab
   const [tab, setTab] = useState("profilo")
+  const [figli, setFigli] = useState([])
   
   // State per il profilo completo
   const [profile, setProfile] = useState(null)
@@ -692,6 +694,26 @@ if (pagamento.stato === 'non_pagato') {
             prezzo_corso4: profileData.prezzo_corso4 || '',
             prezzo_corso5: profileData.prezzo_corso5 || ''
           })
+          // Carica i figli se l'utente è un genitore
+          if (profileData?.ruolo === 'genitore') {
+            const loadFigli = async () => {
+              try {
+                const { data: figliData, error: figliError } = await supabase
+                  .from('utenti')
+                  .select('id, nome, cognome')
+                  .eq('genitore_id', profileData.id)
+                
+                if (figliError) {
+                  console.error('Errore caricamento figli:', figliError)
+                } else {
+                  setFigli(figliData || [])
+                }
+              } catch (err) {
+                console.error('Errore caricamento figli:', err)
+              }
+            }
+            loadFigli()
+          }
         }
       } catch (err) {
         console.error('[DEBUG] Errore caricamento:', err?.message || 'unknown')
@@ -893,6 +915,16 @@ if (pagamento.stato === 'non_pagato') {
                 Pagamenti
               </button>
             </>
+          )}
+          {profile?.ruolo === 'genitore' && (
+            <button
+              onClick={() => setTab("figli")}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                tab === "figli" ? "bg-indigo-500 text-white" : "bg-white/10 text-white/70 hover:bg-white/20"
+              }`}
+            >
+              Figli
+            </button>
           )}
         </div>
         {/* TAB MENSILE */}
@@ -1644,6 +1676,28 @@ if (pagamento.stato === 'non_pagato') {
             </div>
           )}
         </div>
+        )}
+        
+        {/* TAB FIGLI (solo se genitore) */}
+        {profile?.ruolo === 'genitore' && tab === "figli" && (
+          <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
+            <h2 className="text-2xl font-semibold text-white mb-6">Figli</h2>
+            {figli.length === 0 ? (
+              <p className="text-white/70">Nessun figlio registrato</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {figli.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => navigate(`/figlio/${f.id}`)}
+                    className="text-left bg-white/5 border border-white/10 rounded-lg p-4 hover:bg-white/10 transition"
+                  >
+                    <h4 className="text-white font-semibold">{f.nome} {f.cognome}</h4>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
