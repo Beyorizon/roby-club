@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase.js"
+import { useAuth } from '../context/AuthProvider'
 
-function DashboardFiglio() {
+export default function DashboardFiglio() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
   const [allievo, setAllievo] = useState(null)
   const [corsi, setCorsi] = useState([])
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState({})
-  const [message, setMessage] = useState("")
   const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState("")
 
   // Funzione per ottenere i corsi attivi dell'allievo
   const getActiveCourses = () => {
@@ -99,33 +101,18 @@ function DashboardFiglio() {
     try {
       setSaving(true)
       const { error } = await supabase
-        .from("utenti")
-        .update({
-          nome: editData.nome,
-          cognome: editData.cognome,
-          data_nascita: editData.data_nascita,
-          cellulare: editData.cellulare,
-          taglia_tshirt: editData.taglia_tshirt,
-          taglia_pantalone: editData.taglia_pantalone,
-          numero_scarpe: editData.numero_scarpe
-        })
-        .eq("id", id)
-
-      if (error) {
-        setMessage("Errore nell'aggiornamento dei dati.")
-        return
-      }
-
-      // Aggiorna i dati locali
-      setAllievo(prev => ({ ...prev, ...editData }))
-      setIsEditing(false)
-      setMessage("Dati aggiornati con successo!")
+        .from('utenti')
+        .update(editData)
+        .eq('id', id)
       
-      // Nascondi il messaggio dopo 3 secondi
-      setTimeout(() => setMessage(""), 3000)
-    } catch (err) {
-      console.error(err)
-      setMessage("Errore nell'aggiornamento dei dati.")
+      if (error) throw error
+      
+      setAllievo({ ...allievo, ...editData })
+      setIsEditing(false)
+      alert('Dati aggiornati con successo!')
+    } catch (error) {
+      console.error('Errore nell\'aggiornamento:', error)
+      alert('Errore nell\'aggiornamento dei dati')
     } finally {
       setSaving(false)
     }
@@ -166,7 +153,7 @@ function DashboardFiglio() {
             <button
               onClick={isEditing ? handleSave : handleEditToggle}
               disabled={saving}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`px-6 py-3 rounded-xl font-semibold transition-colors ${
                 isEditing 
                   ? 'bg-green-600 hover:bg-green-700 text-white' 
                   : 'bg-blue-600 hover:bg-blue-700 text-white'
@@ -342,24 +329,70 @@ function DashboardFiglio() {
               </div>
             </div>
             
-            {/* Corsi attivi */}
-            {getActiveCourses().length > 0 && (
-              <div>
-                <h2 className="text-xl font-semibold text-white mb-4">Corsi attivi</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {getActiveCourses().map((course) => (
-                    <div key={course.numero} className="bg-white/5 backdrop-blur-md rounded-lg p-4 border border-white/10">
-                      <h4 className="text-lg font-semibold text-white mb-2">{course.nome}</h4>
-                      <p className="text-indigo-400 font-medium">€{course.prezzo}</p>
+            {/* Sezione Corsi - Admin può editare, altri solo visualizzano */}
+            {isAdmin ? (
+              <div className="mt-8">
+                <h3 className="text-xl font-semibold text-white mb-4">Gestione corsi (Admin)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <div key={i} className="space-y-2">
+                      <div>
+                        <label className="block text-white/80 text-sm font-medium mb-2">
+                          Corso {i}
+                        </label>
+                        <select
+                          name={`corso_${i}`}
+                          value={editData[`corso_${i}`] || allievo?.[`corso_${i}`] || ''}
+                          onChange={handleInputChange}
+                          disabled={!isEditing}
+                          className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                        >
+                          <option value="">Seleziona corso</option>
+                          {corsi.map(corso => (
+                            <option key={corso.id} value={corso.id}>
+                              {corso.nome}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-white/80 text-sm font-medium mb-2">
+                          Prezzo corso {i} (€)
+                        </label>
+                        <input
+                          type="number"
+                          name={`prezzo_corso${i}`}
+                          value={editData[`prezzo_corso${i}`] || allievo?.[`prezzo_corso${i}`] || ''}
+                          onChange={handleInputChange}
+                          disabled={!isEditing}
+                          step="0.01"
+                          min="0"
+                          className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                          placeholder="0.00"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
+            ) : (
+              /* Visualizzazione corsi per allievi/genitori */
+              getActiveCourses().length > 0 && (
+                <div className="mt-8">
+                  <h3 className="text-xl font-semibold text-white mb-4">Corsi attivi</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {getActiveCourses().map((course) => (
+                      <div key={course.numero} className="bg-white/5 backdrop-blur-md rounded-lg p-4 border border-white/10">
+                        <h4 className="text-lg font-semibold text-white mb-2">{course.nome}</h4>
+                        <p className="text-indigo-400 font-medium">€{course.prezzo}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
             )}
           </div>
         </div>
       </div>
   )
 }
-
-export default DashboardFiglio
