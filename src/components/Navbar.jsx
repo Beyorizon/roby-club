@@ -139,7 +139,7 @@ function Navbar() {
   );
 
   const dashboardPath =
-    ruolo === "admin"
+    isAdmin
       ? "/admin/allievi"
       : ruolo === "genitore" || ruolo === "allievo"
       ? "/dashboard-utente"
@@ -178,7 +178,7 @@ function Navbar() {
           <nav className="space-y-4">
             {/* Home - Prima posizione */}
             <Link
-              to="/"
+              to="/home"
               onClick={() => setIsMenuOpen(false)}
               className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
             >
@@ -291,13 +291,13 @@ function Navbar() {
           
           {/* 1. Home - Prima posizione a sinistra */}
           <Link
-            to="/"
+            to="/home"
             className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${
-              isActive('/') 
+              isActive('/home') 
                 ? 'text-white bg-white/20' 
                 : 'text-white/70 hover:text-white hover:bg-white/10'
             }`}
-            aria-current={isActive('/') ? 'page' : undefined}
+            aria-current={isActive('/home') ? 'page' : undefined}
           >
             <HomeIcon />
             <span className="text-xs mt-1 font-medium">Home</span>

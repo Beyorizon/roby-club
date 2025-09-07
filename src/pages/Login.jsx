@@ -31,22 +31,8 @@ function Login() {
       const session = data?.session
       if (!session?.user?.id) throw new Error("Sessione non valida")
 
-      const { data: userData, error: userError } = await supabase
-        .from("utenti")
-        .select("ruolo")
-        .eq("auth_id", session.user.id)
-        .single()
-
-      if (userError) throw userError
-      if (userData?.ruolo === "admin") {
-        navigate("/admin/allievi", { replace: true })
-        return
-      }
-      if (userData?.ruolo === "genitore" || userData?.ruolo === "allievo") {
-        navigate("/dashboard-utente", { replace: true })
-        return
-      }
-
+      // Dopo il login, tutti i ruoli vengono reindirizzati a /home
+      navigate("/home", { replace: true })
       if (!userData) {
         setError("Utente non trovato nella tabella 'utenti'")
       } else {

@@ -189,13 +189,18 @@ export default function AuthProvider({ children }) {
         console.error('[supabase] utenti fetch error:', error?.message || error?.code || 'unknown')
         if (!isMounted) return
         setUserProfile(null)
-        setIsAdmin(false)
+        // Modifica: usa fallback via email per admin
+        const isEmailAdmin = user?.email && ADMIN_EMAILS.has(user.email)
+        setIsAdmin(isEmailAdmin)
         return
       }
 
       if (!isMounted) return
       setUserProfile(data || null)
-      setIsAdmin((data?.ruolo || '') === 'admin')
+      // Modifica: considera sia ruolo del profilo che fallback email
+      const isEmailAdmin = user?.email && ADMIN_EMAILS.has(user.email)
+      const isRoleAdmin = typeof data?.ruolo === 'string' && data.ruolo.toLowerCase() === 'admin'
+      setIsAdmin(isRoleAdmin || isEmailAdmin)
     }
 
     const init = async () => {
@@ -266,3 +271,6 @@ export default function AuthProvider({ children }) {
     </AuthContext.Provider>
   )
 }
+
+// Aggiunta: fallback per riconoscere admin tramite email
+const ADMIN_EMAILS = new Set(['grafica.valeriobottiglieri@gmail.com'])

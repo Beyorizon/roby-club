@@ -7,7 +7,6 @@ function AggiungiFiglio() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [genitore, setGenitore] = useState(null)
-  const [corsi, setCorsi] = useState([])
 
   const [formData, setFormData] = useState({
     nome: "",
@@ -32,10 +31,6 @@ function AggiungiFiglio() {
         .eq("auth_id", user.id)
         .single()
       setGenitore(g)
-
-      // Carica corsi
-      const { data: c } = await supabase.from("corsi").select("id, nome")
-      setCorsi(c || [])
     }
     if (user?.id) loadData()
   }, [user?.id])
@@ -77,13 +72,14 @@ function AggiungiFiglio() {
         taglia_pantalone: formData.taglia_pantalone || null,
         numero_scarpe: formData.numero_scarpe ? parseInt(formData.numero_scarpe, 10) : null,
         ruolo: "allievo",
-        genitore_id: genitore.id
+        genitore_id: genitore?.id || null,
+        auth_id: null  // figlio non ha credenziali di login
       })
 
       if (error) throw error
 
       setMessage("Figlio aggiunto con successo!")
-      setTimeout(() => navigate("/dashboard-genitore"), 1500)
+      setTimeout(() => navigate("/dashboard-utente"), 1500)
     } catch (err) {
       console.error(err)
       setMessage("Errore nell'aggiunta del figlio.")
@@ -161,17 +157,6 @@ function AggiungiFiglio() {
               <input type="number" name="numero_scarpe" value={formData.numero_scarpe} onChange={handleInputChange}
                 className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white"/>
             </div>
-          </div>
-
-          <div>
-            <label className="text-white/80 text-sm font-medium mb-2 block">Corso</label>
-            <select name="corso" value={formData.corso} onChange={handleInputChange}
-              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white">
-              <option value="">Seleziona corso</option>
-              {corsi.map(c => (
-                <option key={c.id} value={c.id}>{c.nome}</option>
-              ))}
-            </select>
           </div>
 
           <button type="submit" disabled={saving}

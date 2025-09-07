@@ -457,7 +457,15 @@ function DashboardUtente() {
         {/* TAB FIGLI - solo per genitori */}
         {utente?.ruolo === 'genitore' && tab === "figli" && (
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-            <h2 className="text-2xl font-semibold text-white mb-6">I miei figli</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-semibold text-white">I miei figli</h2>
+              <Link 
+                to="/aggiungi-figlio"
+                className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-colors"
+              >
+                + Aggiungi figlio
+              </Link>
+            </div>
             
             {figli.length === 0 ? (
               <p className="text-white/70">Nessun figlio registrato</p>

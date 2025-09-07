@@ -7,6 +7,10 @@ function DashboardFiglio() {
   const navigate = useNavigate()
   const [allievo, setAllievo] = useState(null)
   const [corsi, setCorsi] = useState([])
+  const [isEditing, setIsEditing] = useState(false)
+  const [editData, setEditData] = useState({})
+  const [message, setMessage] = useState("")
+  const [saving, setSaving] = useState(false)
 
   // Funzione per ottenere i corsi attivi dell'allievo
   const getActiveCourses = () => {
@@ -48,6 +52,15 @@ function DashboardFiglio() {
         .single()
       
       setAllievo(allieveData)
+      setEditData({
+        nome: allieveData?.nome || "",
+        cognome: allieveData?.cognome || "",
+        data_nascita: allieveData?.data_nascita || "",
+        cellulare: allieveData?.cellulare || "",
+        taglia_tshirt: allieveData?.taglia_tshirt || "",
+        taglia_pantalone: allieveData?.taglia_pantalone || "",
+        numero_scarpe: allieveData?.numero_scarpe || ""
+      })
       
       // Carica corsi disponibili
       const { data: corsiData } = await supabase
@@ -59,6 +72,64 @@ function DashboardFiglio() {
     }
     if (id) loadData()
   }, [id])
+
+  const handleEditToggle = () => {
+    if (isEditing) {
+      // Reset ai dati originali se si annulla
+      setEditData({
+        nome: allievo?.nome || "",
+        cognome: allievo?.cognome || "",
+        data_nascita: allievo?.data_nascita || "",
+        cellulare: allievo?.cellulare || "",
+        taglia_tshirt: allievo?.taglia_tshirt || "",
+        taglia_pantalone: allievo?.taglia_pantalone || "",
+        numero_scarpe: allievo?.numero_scarpe || ""
+      })
+    }
+    setIsEditing(!isEditing)
+    setMessage("")
+  }
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setEditData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleSave = async () => {
+    try {
+      setSaving(true)
+      const { error } = await supabase
+        .from("utenti")
+        .update({
+          nome: editData.nome,
+          cognome: editData.cognome,
+          data_nascita: editData.data_nascita,
+          cellulare: editData.cellulare,
+          taglia_tshirt: editData.taglia_tshirt,
+          taglia_pantalone: editData.taglia_pantalone,
+          numero_scarpe: editData.numero_scarpe
+        })
+        .eq("id", id)
+
+      if (error) {
+        setMessage("Errore nell'aggiornamento dei dati.")
+        return
+      }
+
+      // Aggiorna i dati locali
+      setAllievo(prev => ({ ...prev, ...editData }))
+      setIsEditing(false)
+      setMessage("Dati aggiornati con successo!")
+      
+      // Nascondi il messaggio dopo 3 secondi
+      setTimeout(() => setMessage(""), 3000)
+    } catch (err) {
+      console.error(err)
+      setMessage("Errore nell'aggiornamento dei dati.")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (!allievo) {
     return (
@@ -88,103 +159,188 @@ function DashboardFiglio() {
         </button>
         
         <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-          <h1 className="text-3xl font-bold text-white mb-6">
-            {allievo.nome} {allievo.cognome}
-          </h1>
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-white">
+              {allievo.nome} {allievo.cognome}
+            </h1>
+            <button
+              onClick={isEditing ? handleSave : handleEditToggle}
+              disabled={saving}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                isEditing 
+                  ? 'bg-green-600 hover:bg-green-700 text-white' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {saving ? 'Salvando...' : isEditing ? 'Salva' : 'Modifica'}
+            </button>
+          </div>
           
-          <div className="space-y-6">
+          {isEditing && (
+            <button
+              onClick={handleEditToggle}
+              className="mb-4 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+            >
+              Annulla
+            </button>
+          )}
+          
+          {message && (
+            <div className={`mb-4 p-3 rounded-lg ${
+              message.includes('successo') 
+                ? 'bg-green-500/20 text-green-200' 
+                : 'bg-red-500/20 text-red-200'
+            }`}>
+              {message}
+            </div>
+          )}
             {/* Informazioni personali */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-white mb-4">Informazioni personali</h2>
-                
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold text-white mb-4">Informazioni personali</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white/5 rounded-lg p-4">
-                  <p className="text-white/70 text-sm">Nome completo</p>
-                  <p className="text-white font-medium">{allievo.nome} {allievo.cognome}</p>
+                  <p className="text-white/70 text-sm mb-2">Nome</p>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="nome"
+                      value={editData.nome}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                    />
+                  ) : (
+                    <p className="text-white font-medium">{allievo.nome}</p>
+                  )}
                 </div>
                 
-                {allievo.email && (
-                  <div className="bg-white/5 rounded-lg p-4">
-                    <p className="text-white/70 text-sm">Email</p>
-                    <p className="text-white font-medium">{allievo.email}</p>
-                  </div>
-                )}
+                <div className="bg-white/5 rounded-lg p-4">
+                  <p className="text-white/70 text-sm mb-2">Cognome</p>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="cognome"
+                      value={editData.cognome}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                    />
+                  ) : (
+                    <p className="text-white font-medium">{allievo.cognome}</p>
+                  )}
+                </div>
                 
-                {allievo.data_iscrizione && (
-                  <div className="bg-white/5 rounded-lg p-4">
-                    <p className="text-white/70 text-sm">Data iscrizione</p>
-                    <p className="text-white font-medium">{new Date(allievo.data_iscrizione).toLocaleDateString('it-IT')}</p>
-                  </div>
-                )}
+                <div className="bg-white/5 rounded-lg p-4">
+                  <p className="text-white/70 text-sm mb-2">Data di nascita</p>
+                  {isEditing ? (
+                    <input
+                      type="date"
+                      name="data_nascita"
+                      value={editData.data_nascita}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                    />
+                  ) : (
+                    <p className="text-white font-medium">
+                      {allievo.data_nascita ? new Date(allievo.data_nascita).toLocaleDateString('it-IT') : 'Non specificata'}
+                    </p>
+                  )}
+                </div>
                 
-                {allievo.data_nascita && (
-                  <div className="bg-white/5 rounded-lg p-4">
-                    <p className="text-white/70 text-sm">Data di nascita</p>
-                    <p className="text-white font-medium">{new Date(allievo.data_nascita).toLocaleDateString('it-IT')}</p>
-                  </div>
-                )}
-                
-                {allievo.cellulare && (
-                  <div className="bg-white/5 rounded-lg p-4">
-                    <p className="text-white/70 text-sm">Cellulare</p>
-                    <p className="text-white font-medium">{allievo.cellulare}</p>
-                  </div>
-                )}
+                <div className="bg-white/5 rounded-lg p-4">
+                  <p className="text-white/70 text-sm mb-2">Cellulare</p>
+                  {isEditing ? (
+                    <input
+                      type="tel"
+                      name="cellulare"
+                      value={editData.cellulare}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                    />
+                  ) : (
+                    <p className="text-white font-medium">{allievo.cellulare || 'Non specificato'}</p>
+                  )}
+                </div>
               </div>
               
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-white mb-4">Contatti genitori</h2>
-                
-                {allievo.nome_genitore1 && (
-                  <div className="bg-white/5 rounded-lg p-4">
-                    <p className="text-white/70 text-sm">Genitore 1</p>
-                    <p className="text-white font-medium">{allievo.nome_genitore1}</p>
-                    {allievo.cellulare_genitore1 && (
-                      <p className="text-white/60 text-sm">{allievo.cellulare_genitore1}</p>
-                    )}
-                  </div>
-                )}
-                
-                {allievo.nome_genitore2 && (
-                  <div className="bg-white/5 rounded-lg p-4">
-                    <p className="text-white/70 text-sm">Genitore 2</p>
-                    <p className="text-white font-medium">{allievo.nome_genitore2}</p>
-                    {allievo.cellulare_genitore2 && (
-                      <p className="text-white/60 text-sm">{allievo.cellulare_genitore2}</p>
-                    )}
-                  </div>
-                )}
-              </div>
+              {allievo.email && (
+                <div className="bg-white/5 rounded-lg p-4">
+                  <p className="text-white/70 text-sm">Email</p>
+                  <p className="text-white font-medium">{allievo.email}</p>
+                </div>
+              )}
+              
+              {allievo.data_iscrizione && (
+                <div className="bg-white/5 rounded-lg p-4">
+                  <p className="text-white/70 text-sm">Data iscrizione</p>
+                  <p className="text-white font-medium">{new Date(allievo.data_iscrizione).toLocaleDateString('it-IT')}</p>
+                </div>
+              )}
             </div>
             
             {/* Taglie */}
-            {(allievo.taglia_tshirt || allievo.taglia_pantalone || allievo.numero_scarpe) && (
-              <div>
-                <h2 className="text-xl font-semibold text-white mb-4">Taglie</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {allievo.taglia_tshirt && (
-                    <div className="bg-white/5 rounded-lg p-4">
-                      <p className="text-white/70 text-sm">Taglia T-shirt</p>
-                      <p className="text-white font-medium">{allievo.taglia_tshirt}</p>
-                    </div>
+            <div>
+              <h2 className="text-xl font-semibold text-white mb-4">Taglie</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white/5 rounded-lg p-4">
+                  <p className="text-white/70 text-sm mb-2">Taglia T-shirt</p>
+                  {isEditing ? (
+                    <select
+                      name="taglia_tshirt"
+                      value={editData.taglia_tshirt}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                    >
+                      <option value="">Seleziona</option>
+                      <option value="XS">XS</option>
+                      <option value="S">S</option>
+                      <option value="M">M</option>
+                      <option value="L">L</option>
+                      <option value="XL">XL</option>
+                      <option value="XXL">XXL</option>
+                    </select>
+                  ) : (
+                    <p className="text-white font-medium">{allievo.taglia_tshirt || 'Non specificata'}</p>
                   )}
-                  
-                  {allievo.taglia_pantalone && (
-                    <div className="bg-white/5 rounded-lg p-4">
-                      <p className="text-white/70 text-sm">Taglia pantalone</p>
-                      <p className="text-white font-medium">{allievo.taglia_pantalone}</p>
-                    </div>
+                </div>
+                
+                <div className="bg-white/5 rounded-lg p-4">
+                  <p className="text-white/70 text-sm mb-2">Taglia pantalone</p>
+                  {isEditing ? (
+                    <select
+                      name="taglia_pantalone"
+                      value={editData.taglia_pantalone}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                    >
+                      <option value="">Seleziona</option>
+                      <option value="XS">XS</option>
+                      <option value="S">S</option>
+                      <option value="M">M</option>
+                      <option value="L">L</option>
+                      <option value="XL">XL</option>
+                      <option value="XXL">XXL</option>
+                    </select>
+                  ) : (
+                    <p className="text-white font-medium">{allievo.taglia_pantalone || 'Non specificata'}</p>
                   )}
-                  
-                  {allievo.numero_scarpe && (
-                    <div className="bg-white/5 rounded-lg p-4">
-                      <p className="text-white/70 text-sm">Numero scarpe</p>
-                      <p className="text-white font-medium">{allievo.numero_scarpe}</p>
-                    </div>
+                </div>
+                
+                <div className="bg-white/5 rounded-lg p-4">
+                  <p className="text-white/70 text-sm mb-2">Numero scarpe</p>
+                  {isEditing ? (
+                    <input
+                      type="number"
+                      name="numero_scarpe"
+                      value={editData.numero_scarpe}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                    />
+                  ) : (
+                    <p className="text-white font-medium">{allievo.numero_scarpe || 'Non specificato'}</p>
                   )}
                 </div>
               </div>
-            )}
+            </div>
             
             {/* Corsi attivi */}
             {getActiveCourses().length > 0 && (
@@ -203,7 +359,6 @@ function DashboardFiglio() {
           </div>
         </div>
       </div>
-    </div>
   )
 }
 

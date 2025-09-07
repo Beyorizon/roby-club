@@ -6,6 +6,10 @@ function Signup() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900">
       <CardGlass className="p-8 max-w-md w-full text-center">
         <h1 className="text-2xl font-bold text-white mb-6">Registrati come</h1>
+        <div className="text-white text-sm mb-4 text-center">
+          <p className="mb-2">Registrati come genitore se hai più di un figlio/a iscritto.</p>
+          <p>Se hai un solo figlio iscritto, effettua la registrazione come allievo con i dati di tuo figlio/a.</p>
+        </div>
         <div className="space-y-4">
           <Link
             to="/signup-genitore"
