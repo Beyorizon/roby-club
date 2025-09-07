@@ -218,16 +218,14 @@ function Navbar() {
             */}
 
             {/* Saggi */}
-            <button
-              onClick={() => {
-                setIsMenuOpen(false);
-                scrollToSection('saggi');
-              }}
+              <Link
+              to="/home/#saggi"
+              onClick={() => setIsMenuOpen(false)}
               className="flex items-center gap-3 w-full p-3 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors text-left"
             >
               <VideoIcon />
               <span className="font-medium">Saggi</span>
-            </button>
+               </Link>
 
             {/* Regolamento - TEMPORANEAMENTE NASCOSTO
             <Link

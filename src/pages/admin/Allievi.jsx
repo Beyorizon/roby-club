@@ -157,16 +157,6 @@ const loadAllievi = useCallback(async (searchQuery = '', corsoFilter = '', tipoF
 {/* Pulsanti filtro tipo */}
       <div className="mb-4 flex gap-2">
         <button
-          onClick={() => setSelectedTipo('')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            selectedTipo === '' 
-              ? 'bg-indigo-600 text-white' 
-              : 'bg-white/10 text-white/70 hover:bg-white/20'
-          }`}
-        >
-          Tutti
-        </button>
-        <button
           onClick={() => setSelectedTipo('allievo')}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
             selectedTipo === 'allievo' 
@@ -185,6 +175,16 @@ const loadAllievi = useCallback(async (searchQuery = '', corsoFilter = '', tipoF
           }`}
         >
           Genitori
+        </button>
+        <button
+          onClick={() => setSelectedTipo('')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            selectedTipo === '' 
+              ? 'bg-indigo-600 text-white' 
+              : 'bg-white/10 text-white/70 hover:bg-white/20'
+          }`}
+        >
+          Tutti
         </button>
       </div>
       
