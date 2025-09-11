@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import AuthProvider from './context/AuthProvider.jsx'
 import UserGuard from './components/UserGuard.jsx'
 import AdminGuard from './components/AdminGuard.jsx'
+import AuthRedirect from './components/AuthRedirect.jsx'
 import Navbar from './components/Navbar.jsx'
 
 // Pagine pubbliche
@@ -37,8 +38,8 @@ function AppContent() {
       {!hideNavbar && <Navbar />}
       <main className="pt-0">
         <Routes>
-          {/* Route principale - Login obbligatorio */}
-          <Route path="/" element={<Login />} />
+          {/* Route principale - Redirect automatico basato su stato auth */}
+          <Route path="/" element={<AuthRedirect />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/signup-genitore" element={<SignupGenitore />} />
