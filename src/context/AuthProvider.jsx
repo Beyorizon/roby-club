@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { sendLog } from '../lib/logger'
 
 const AuthContext = createContext({
   session: null,
@@ -204,11 +205,19 @@ export default function AuthProvider({ children }) {
     }
 
     const init = async () => {
+      console.log('[AuthProvider] Inizializzazione...')
+      sendLog('AuthProvider', 'Avvio app - controllo sessione')
+      
       try {
         console.log('🔄 [DEBUG] Starting auth initialization...')
         const { data: { session: initialSession }, error } = await supabase.auth.getSession()
+        console.log('[AuthProvider] Sessione ottenuta:', initialSession)
+        sendLog('AuthProvider', 'getSession risultato', { session: initialSession ? 'presente' : 'null', error })
+        
         if (error) {
           console.error('[supabase] getSession error:', error?.message || error?.code || 'unknown')
+          console.error('[AuthProvider] Errore nel recupero della sessione:', error)
+          return
         }
         console.log('📋 [DEBUG] Initial session:', !!initialSession)
         if (!isMounted) return
@@ -217,6 +226,8 @@ export default function AuthProvider({ children }) {
         await fetchProfile(initialSession?.user?.id || null)
       } catch (err) {
         console.error('[auth] init error:', err?.message || 'unknown')
+        console.error('[AuthProvider] Errore durante l\'inizializzazione:', err)
+        sendLog('AuthProvider', 'Errore durante inizializzazione', { error: err.message })
       } finally {
         if (isMounted) {
           console.log('✅ [DEBUG] Auth initialization complete, setting loading to false')
@@ -238,9 +249,11 @@ export default function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       // Log dettagliato per ogni evento auth
       console.log(`🔔 [DEBUG] Auth state changed: ${event}, session: ${!!newSession}`)
+      sendLog('AuthProvider', 'Evento onAuthStateChange', { event, session: newSession ? 'presente' : 'null' })
       
       if (event === 'SIGNED_OUT') {
         console.log('👋 [DEBUG] SIGNED_OUT event received - logout successful')
+        sendLog('AuthProvider', 'SIGNED_OUT - pulizia stato')
         // Assicuriamoci che lo stato sia pulito
         if (isMounted) {
           setSession(null)
@@ -256,6 +269,7 @@ export default function AuthProvider({ children }) {
       setUser(newSession?.user ?? null)
 
       if (newSession?.user?.id) {
+        sendLog('AuthProvider', 'Impostazione nuova sessione', { userId: newSession.user.id })
         await fetchProfile(newSession.user.id)
       } else {
         setUserProfile(null)
@@ -269,6 +283,7 @@ export default function AuthProvider({ children }) {
     })
 
     return () => {
+      sendLog('AuthProvider', 'Cleanup listener')
       isMounted = false
       subscription?.unsubscribe?.()
       clearTimeout(safetyTimeout)

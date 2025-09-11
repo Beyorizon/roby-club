@@ -1,9 +1,18 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthProvider'
+import { sendLog } from '../lib/logger'
 
 function AuthRedirect() {
   const { session, loading } = useAuth()
+
+  useEffect(() => {
+    sendLog('App', 'Render principale AuthRedirect', { 
+      loading, 
+      hasSession: !!session,
+      userId: session?.user?.id 
+    })
+  }, [loading, session])
 
   // Mostra loading mentre verifica lo stato di autenticazione
   if (loading) {

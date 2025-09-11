@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import CardGlass from '../components/CardGlass.jsx'
 import { supabase } from '../lib/supabase.js'
+import { sendLog } from '../lib/logger'
 
 function Login() {
   const [formData, setFormData] = useState({ email: '', password: '' })
@@ -21,11 +22,21 @@ function Login() {
     setLoading(true)
     setError('')
 
+    sendLog('Login', 'Tentativo login', { email: formData.email })
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password
       })
+      
+      sendLog('Login', 'Risultato login', { 
+        success: !error, 
+        error: error?.message, 
+        hasSession: !!data?.session,
+        userId: data?.session?.user?.id 
+      })
+      
       if (error) throw error
 
       const session = data?.session
@@ -40,6 +51,7 @@ function Login() {
       }
     } catch (err) {
       console.error(err)
+      sendLog('Login', 'Errore login', { error: err.message })
       setError("Credenziali non valide. Riprova.")
     } finally {
       setLoading(false)
