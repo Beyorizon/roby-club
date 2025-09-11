@@ -9,6 +9,7 @@ function SignupGenitore() {
     nome: '',
     cognome: '',
     email: '',
+    telefono: '',
     password: ''
   })
   const [loading, setLoading] = useState(false)
@@ -28,6 +29,7 @@ function SignupGenitore() {
           data: { 
             nome: formData.nome, 
             cognome: formData.cognome,
+            telefono: formData.telefono,
             ruolo: "genitore"
           } 
         }
@@ -62,6 +64,8 @@ function SignupGenitore() {
           <input type="text" name="cognome" placeholder="Cognome" value={formData.cognome} onChange={handleInputChange} required
             className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50"/>
           <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleInputChange} required
+            className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50"/>
+          <input type="tel" name="telefono" placeholder="Numero di telefono" value={formData.telefono} onChange={handleInputChange} required
             className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50"/>
           <input type="password" name="password" placeholder="Password" value={formData.password} onChange={handleInputChange} required minLength={6}
             className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50"/>

@@ -205,10 +205,12 @@ export default function AuthProvider({ children }) {
 
     const init = async () => {
       try {
+        console.log('🔄 [DEBUG] Starting auth initialization...')
         const { data: { session: initialSession }, error } = await supabase.auth.getSession()
         if (error) {
           console.error('[supabase] getSession error:', error?.message || error?.code || 'unknown')
         }
+        console.log('📋 [DEBUG] Initial session:', !!initialSession)
         if (!isMounted) return
         setSession(initialSession || null)
         setUser(initialSession?.user ?? null)
@@ -216,9 +218,20 @@ export default function AuthProvider({ children }) {
       } catch (err) {
         console.error('[auth] init error:', err?.message || 'unknown')
       } finally {
-        if (isMounted) setLoading(false)
+        if (isMounted) {
+          console.log('✅ [DEBUG] Auth initialization complete, setting loading to false')
+          setLoading(false)
+        }
       }
     }
+
+    // Timeout di sicurezza per evitare loading infinito
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn('⚠️ [DEBUG] Safety timeout triggered - forcing loading to false')
+        setLoading(false)
+      }
+    }, 10000) // 10 secondi
 
     init()
 
@@ -234,6 +247,7 @@ export default function AuthProvider({ children }) {
           setUser(null)
           setUserProfile(null)
           setIsAdmin(false)
+          setLoading(false) // Assicurati che loading sia false dopo logout
         }
       }
 
@@ -247,11 +261,17 @@ export default function AuthProvider({ children }) {
         setUserProfile(null)
         setIsAdmin(false)
       }
+      
+      // Assicurati sempre che loading sia false dopo ogni cambio di stato
+      if (isMounted) {
+        setLoading(false)
+      }
     })
 
     return () => {
       isMounted = false
       subscription?.unsubscribe?.()
+      clearTimeout(safetyTimeout)
     }
   }, [])
 
