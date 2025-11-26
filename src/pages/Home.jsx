@@ -103,19 +103,8 @@ function Home() {
 
   // Carica lezioni del giorno corrente da Supabase
   useEffect(() => {
-    let cancelled = false;
-    const safetyTimeout = setTimeout(() => {
-      if (!cancelled) {
-        console.warn('[Home] Safety timeout lezioni - forzo loadingLezioni = false');
-        setErrorLezioni(new Error('timeout'));
-        setLoadingLezioni(false);
-      }
-    }, 10000);
-
-    async function loadLezioniOggi() {
+    const loadLezioniOggi = async () => {
       try {
-        setLoadingLezioni(true);
-        console.log('[Home] carico lezioni di oggi...');
         const giornoCorrente = getToday();
         const { data, error } = await supabase
           .from('lezioni')
@@ -123,37 +112,20 @@ function Home() {
           .eq('giorno', giornoCorrente)
           .order('orario_inizio');
 
-        if (cancelled) return;
-
-        console.log('[Home] risposta lezioni', { data, error });
-
         if (error) {
           console.error('Errore caricamento lezioni:', error);
-          setLezioniOggi([]);
-          setErrorLezioni(error);
-        } else {
-          setLezioniOggi(data ?? []);
-          setErrorLezioni(null);
+          return;
         }
+
+        setLezioniOggi(data || []);
       } catch (err) {
-        if (cancelled) return;
-        console.error('Errore caricamento lezioni (catch):', err);
-        setLezioniOggi([]);
-        setErrorLezioni(err);
+        console.error('Errore caricamento lezioni:', err);
       } finally {
-        if (!cancelled) {
-          clearTimeout(safetyTimeout);
-          setLoadingLezioni(false);
-        }
+        setLoadingLezioni(false);
       }
-    }
+    };
 
     loadLezioniOggi();
-
-    return () => {
-      cancelled = true;
-      clearTimeout(safetyTimeout);
-    };
   }, []);
 
   // Carica ultime notizie (robustito con cancellazione e safety timeout)
@@ -163,7 +135,6 @@ function Home() {
     const safetyTimeout = setTimeout(() => {
       if (!cancelled) {
         console.warn('[Home] Safety timeout annunci - forzo loadingNotizie = false')
-        setErrorNotizie(new Error('timeout'))
         setLoadingNotizie(false)
       }
     }, 10000)
@@ -171,7 +142,6 @@ function Home() {
     async function loadUltimeNotizie() {
       try {
         setLoadingNotizie(true)
-        setErrorNotizie(null)
         console.log('[Home] carico ultime notizie...')
 
         const { data, error } = await supabase
@@ -188,16 +158,13 @@ function Home() {
         if (error) {
           console.error('Errore caricamento notizie:', error)
           setUltimeNotizie([])
-          setErrorNotizie(error)
         } else {
           setUltimeNotizie(data ?? [])
-          setErrorNotizie(null)
         }
       } catch (err) {
         if (cancelled) return
         console.error('Errore caricamento notizie (catch):', err)
         setUltimeNotizie([])
-        setErrorNotizie(err)
       } finally {
         if (!cancelled) {
           clearTimeout(safetyTimeout)
@@ -302,10 +269,6 @@ function Home() {
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-4"></div>
               <p className="text-white/70">Caricamento annunci...</p>
             </div>
-          ) : errorNotizie ? (
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 text-center">
-              <p className="text-white/70">Errore nel caricamento degli annunci.</p>
-            </div>
           ) : ultimeNotizie.length === 0 ? (
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 text-center">
               <p className="text-white/70">Nessun annuncio disponibile al momento.</p>
@@ -328,7 +291,7 @@ function Home() {
                 )}
               />
             </>
-          ) }
+          )}
         </section>
 
         {/* Sezione Saggi YouTube */}
