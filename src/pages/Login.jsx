@@ -41,14 +41,10 @@ function Login() {
 
       const session = data?.session
       if (!session?.user?.id) throw new Error("Sessione non valida")
+      console.log(session)
 
-      // Dopo il login, tutti i ruoli vengono reindirizzati a /home
+      // Dopo il login, reindirizza alla home (il ruolo verrà gestito dai componenti che leggono dalla tabella 'utenti')
       navigate("/home", { replace: true })
-      if (!userData) {
-        setError("Utente non trovato nella tabella 'utenti'")
-      } else {
-        setError(`Ruolo non valido: ${userData.ruolo}`)
-      }
     } catch (err) {
       console.error(err)
       sendLog('Login', 'Errore login', { error: err.message })

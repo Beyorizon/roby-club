@@ -31,7 +31,7 @@ function DashboardUtente() {
     const loadData = async () => {
       try {
         // Carica i dati dell'utente loggato
-        const { data: userData, error: userError } = await supabase
+        const { data: utenteData, error: userError } = await supabase
           .from("utenti")
           .select("*")
           .eq("auth_id", user.id)
@@ -39,37 +39,37 @@ function DashboardUtente() {
         
         if (userError) throw userError
         
-        if (userData) {
-          setUtente(userData)
+        if (utenteData) {
+          setUtente(utenteData)
           setFormData({
-            nome: userData.nome || "",
-            cognome: userData.cognome || "",
-            data_nascita: userData.data_nascita || "",
-            cellulare: userData.cellulare || "",
-            nome_genitore1: userData.nome_genitore1 || "",
-            cellulare_genitore1: userData.cellulare_genitore1 || "",
-            nome_genitore2: userData.nome_genitore2 || "",
-            cellulare_genitore2: userData.cellulare_genitore2 || "",
-            taglia_tshirt: userData.taglia_tshirt || "",
-            taglia_pantalone: userData.taglia_pantalone || "",
-            numero_scarpe: userData.numero_scarpe || ""
+            nome: utenteData.nome || "",
+            cognome: utenteData.cognome || "",
+            data_nascita: utenteData.data_nascita || "",
+            cellulare: utenteData.cellulare || "",
+            nome_genitore1: utenteData.nome_genitore1 || "",
+            cellulare_genitore1: utenteData.cellulare_genitore1 || "",
+            nome_genitore2: utenteData.nome_genitore2 || "",
+            cellulare_genitore2: utenteData.cellulare_genitore2 || "",
+            taglia_tshirt: utenteData.taglia_tshirt || "",
+            taglia_pantalone: utenteData.taglia_pantalone || "",
+            numero_scarpe: utenteData.numero_scarpe || ""
           })
 
           // Carica i pagamenti collegati all'utente
           const { data: pagamentiData, error: pagamentiError } = await supabase
             .from("pagamenti")
             .select("*")
-            .eq("allievo_id", userData.id)
+            .eq("allievo_id", utenteData.id)
           
           if (pagamentiError) throw pagamentiError
           setPagamenti(pagamentiData || [])
 
           // Se è un genitore, carica anche i figli
-          if (userData.ruolo === 'genitore') {
+          if (utenteData.ruolo === 'genitore') {
             const { data: figliData, error: figliError } = await supabase
               .from("utenti")
               .select("id, nome, cognome")
-              .eq("genitore_id", userData.id)
+              .eq("genitore_id", utenteData.id)
             
             if (figliError) throw figliError
             setFigli(figliData || [])
@@ -81,7 +81,7 @@ function DashboardUtente() {
         setCorsi(corsiData || [])
 
         // Subscription realtime per i pagamenti
-        if (userData) {
+        if (utenteData) {
           const channel = supabase
             .channel('pagamenti-utente')
             .on(
@@ -90,13 +90,13 @@ function DashboardUtente() {
                 event: '*',
                 schema: 'public',
                 table: 'pagamenti',
-                filter: `allievo_id=eq.${userData.id}`
+                filter: `allievo_id=eq.${utenteData.id}`
               },
               async () => {
                 const { data: updatedPagamenti } = await supabase
                   .from("pagamenti")
                   .select("*")
-                  .eq("allievo_id", userData.id)
+                  .eq("allievo_id", utenteData.id)
                 setPagamenti(updatedPagamenti || [])
               }
             )
@@ -224,7 +224,7 @@ function DashboardUtente() {
           )}
         </div>
 
-        {/* TAB DATI */}
+        {/* resto del file invariato */}
         {tab === "dati" && (
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
             <h2 className="text-2xl font-semibold text-white mb-6">Il mio profilo</h2>

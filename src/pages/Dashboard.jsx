@@ -195,7 +195,7 @@ const loadPagamenti = async () => {
     const { data: pagamentiRows, error: pagamentiError } = await supabase
       .from("pagamenti")
       .select("*")
-      .eq("auth_id", user.id);
+      .eq("allievo_id", profile.id);
 
     if (pagamentiError) {
       console.error("Errore fetch pagamenti:", pagamentiError);

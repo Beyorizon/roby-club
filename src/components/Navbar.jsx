@@ -21,25 +21,42 @@ function Navbar() {
         setRuolo("admin");
         return;
       }
-      const { data: g } = await supabase
-        .from("genitori")
-        .select("id")
-        .eq("auth_id", session.user.id)
-        .maybeSingle();
-      if (g) {
-        setRuolo("genitore");
-        return;
+      try {
+        // Verifica se l'utente loggato è un genitore
+        const { data: genitore, error: genitoreError } = await supabase
+          .from("utenti")
+          .select("id, ruolo")
+          .eq("auth_id", session.user.id)
+          .eq("ruolo", "genitore")
+          .maybeSingle();
+        if (genitoreError) {
+          console.error("Errore rilevamento ruolo (genitore):", genitoreError.message);
+        }
+        if (genitore) {
+          setRuolo("genitore");
+          return;
+        }
+
+        // Altrimenti verifica se è un allievo
+        const { data: allievo, error: allievoError } = await supabase
+          .from("utenti")
+          .select("id, ruolo")
+          .eq("auth_id", session.user.id)
+          .eq("ruolo", "allievo")
+          .maybeSingle();
+        if (allievoError) {
+          console.error("Errore rilevamento ruolo (allievo):", allievoError.message);
+        }
+        if (allievo) {
+          setRuolo("allievo");
+          return;
+        }
+
+        setRuolo(null);
+      } catch (err) {
+        console.error("Errore inatteso nel rilevamento ruolo:", err);
+        setRuolo(null);
       }
-      const { data: u } = await supabase
-        .from("utenti")
-        .select("id")
-        .eq("auth_id", session.user.id)
-        .maybeSingle();
-      if (u) {
-        setRuolo("allievo");
-        return;
-      }
-      setRuolo(null);
     };
     loadRuolo();
   }, [session, isAdmin]);
@@ -85,7 +102,7 @@ function Navbar() {
 
   const LoginIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 01-3-3h7a3 3 0 013 3v1" />
     </svg>
   );
 

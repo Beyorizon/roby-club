@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 
 const PaymentGrid = ({ 
-  authId, 
+  allievoId, 
   year = new Date().getFullYear(), 
   adminMode = false, 
   iscrizioni = [], 
@@ -14,8 +14,8 @@ const PaymentGrid = ({
   const [updating, setUpdating] = useState({});
 
   const monthNames = [
-    'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-    'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+    'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
+    'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto'
   ];
 
   useEffect(() => {
@@ -25,8 +25,9 @@ const PaymentGrid = ({
         const { data, error } = await supabase
           .from('pagamenti')
           .select('*')
-          .eq('auth_id', authId)
-          .eq('anno', year);
+          .eq('allievo_id', allievoId)
+          .eq('anno', year)
+          .eq('categoria', 'mensile');
 
         if (error) throw error;
         setPayments(data || []);
@@ -38,36 +39,35 @@ const PaymentGrid = ({
       }
     };
 
-    if (authId) {
+    if (allievoId) {
       loadPayments();
     }
-  }, [authId, year]);
+  }, [allievoId, year]);
 
-  const getMonthStatus = (month) => {
-    const payment = payments.find(p => p.mese === month);
+  const getMonthStatus = (monthName) => {
+    const payment = payments.find(p => (p.mese || '').toLowerCase() === monthName.toLowerCase() && String(p.anno) === String(year));
+    if (payment && payment.stato) {
+      return payment.stato;
+    }
+
     const today = new Date();
-    const currentYear = today.getFullYear();
+    const map = { 'Gennaio':1,'Febbraio':2,'Marzo':3,'Aprile':4,'Maggio':5,'Giugno':6,'Luglio':7,'Agosto':8,'Settembre':9,'Ottobre':10,'Novembre':11,'Dicembre':12 };
+    const monthIndex = map[monthName] || 0;
     const currentMonth = today.getMonth() + 1;
     const currentDay = today.getDate();
 
-    if (payment && payment.pagato) {
-      return 'paid';
+    if (monthIndex && (monthIndex < currentMonth || (monthIndex === currentMonth && currentDay > 10))) {
+      return 'scaduto';
     }
 
-    if (year === currentYear) {
-      if (month < currentMonth || (month === currentMonth && currentDay > 10)) {
-        return 'overdue';
-      }
-    }
-
-    return 'unpaid';
+    return 'non_dovuto';
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'paid':
+      case 'pagato':
         return 'bg-green-500 text-white';
-      case 'overdue':
+      case 'scaduto':
         return 'bg-red-500 text-white';
       default:
         return 'bg-gray-400 text-white';
@@ -76,12 +76,12 @@ const PaymentGrid = ({
 
   const getStatusText = (status) => {
     switch (status) {
-      case 'paid':
-        return 'Sì';
-      case 'overdue':
-        return 'No';
+      case 'pagato':
+        return 'Pagato';
+      case 'scaduto':
+        return 'Scaduto';
       default:
-        return 'No';
+        return 'Non dovuto';
     }
   };
 
@@ -89,30 +89,31 @@ const PaymentGrid = ({
     return iscrizioni.reduce((total, iscrizione) => total + (iscrizione.prezzo || 0), 0);
   };
 
-  const togglePayment = async (month) => {
+  const togglePayment = async (monthName) => {
     if (!adminMode) return;
     
-    const existingPayment = payments.find(p => p.mese === month);
-    const newPagato = !existingPayment?.pagato;
+    const existingPayment = payments.find(p => (p.mese || '').toLowerCase() === monthName.toLowerCase() && String(p.anno) === String(year));
+    const currentStatus = existingPayment?.stato;
+    const newStato = currentStatus === 'pagato' ? 'scaduto' : 'pagato';
     const totalAmount = calculateTotalAmount();
     
-    setUpdating(prev => ({ ...prev, [month]: true }));
+    setUpdating(prev => ({ ...prev, [monthName]: true }));
     
     try {
       const paymentData = {
-        auth_id: authId,
-        corso_id: null, // Pagamento generale
-        mese: month,
+        allievo_id: allievoId,
+        categoria: 'mensile',
+        mese: monthName,
         anno: year,
         importo: totalAmount,
-        pagato: newPagato,
-        data_pagamento: newPagato ? new Date().toISOString() : null
+        stato: newStato,
+        data_pagamento: newStato === 'pagato' ? new Date().toISOString() : null
       };
 
       const { data, error } = await supabase
         .from('pagamenti')
         .upsert(paymentData, {
-          onConflict: 'auth_id,corso_id,mese,anno'
+          onConflict: 'allievo_id,mese,anno,categoria'
         })
         .select();
 
@@ -120,7 +121,7 @@ const PaymentGrid = ({
 
       // Optimistic update
       setPayments(prev => {
-        const filtered = prev.filter(p => p.mese !== month);
+        const filtered = prev.filter(p => (p.mese || '').toLowerCase() !== monthName.toLowerCase() || String(p.anno) !== String(year) || p.categoria !== 'mensile');
         return [...filtered, data[0]];
       });
 
@@ -131,7 +132,7 @@ const PaymentGrid = ({
       console.error('Errore aggiornamento pagamento:', err);
       setError('Errore nell\'aggiornamento del pagamento');
     } finally {
-      setUpdating(prev => ({ ...prev, [month]: false }));
+      setUpdating(prev => ({ ...prev, [monthName]: false }));
     }
   };
 
@@ -189,22 +190,21 @@ const PaymentGrid = ({
 
       {/* Griglia mesi */}
       <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        {monthNames.map((monthName, index) => {
-          const month = index + 1;
-          const status = getMonthStatus(month);
-          const isUpdating = updating[month];
-          const payment = payments.find(p => p.mese === month);
+        {monthNames.map((monthName) => {
+          const status = getMonthStatus(monthName);
+          const isUpdating = updating[monthName];
+          const payment = payments.find(p => (p.mese || '').toLowerCase() === monthName.toLowerCase() && String(p.anno) === String(year));
           
           return (
             <div
-              key={month}
+              key={monthName}
               className={`
                 ${getStatusColor(status)}
                 rounded-lg p-3 text-center transition-all duration-200
                 ${adminMode ? 'cursor-pointer hover:scale-105 hover:shadow-lg' : 'hover:scale-105 hover:shadow-lg'}
                 ${isUpdating ? 'opacity-60' : ''}
               `}
-              onClick={() => adminMode && !isUpdating && togglePayment(month)}
+              onClick={() => adminMode && !isUpdating && togglePayment(monthName)}
             >
               <div className="text-xs font-medium mb-1">
                 {monthName}
