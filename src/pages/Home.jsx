@@ -128,25 +128,57 @@ function Home() {
     loadLezioniOggi();
   }, []);
 
-  // Carica ultime 3 notizie pubblicate da Supabase
+  // Carica ultime notizie (robustito con cancellazione e safety timeout)
   useEffect(() => {
-    const loadUltimeNotizie = async () => {
+    let cancelled = false
+    // Safety timeout: se la fetch si impianta, spegniamo comunque il loader
+    const safetyTimeout = setTimeout(() => {
+      if (!cancelled) {
+        console.warn('[Home] Safety timeout annunci - forzo loadingNotizie = false')
+        setLoadingNotizie(false)
+      }
+    }, 10000)
+
+    async function loadUltimeNotizie() {
       try {
+        setLoadingNotizie(true)
+        console.log('[Home] carico ultime notizie...')
+
         const { data, error } = await supabase
           .from('annunci')
-          .select('id, titolo, contenuto, created_at')
+          .select('id, titolo, contenuto, created_at, immagine_url')
           .eq('published', true)
           .order('created_at', { ascending: false })
           .limit(5)
-        if (error) throw error
-        setUltimeNotizie(data || [])
+
+        if (cancelled) return
+
+        console.log('[Home] risposta annunci', { data, error })
+
+        if (error) {
+          console.error('Errore caricamento notizie:', error)
+          setUltimeNotizie([])
+        } else {
+          setUltimeNotizie(data ?? [])
+        }
       } catch (err) {
-        console.error('Errore caricamento notizie:', err)
+        if (cancelled) return
+        console.error('Errore caricamento notizie (catch):', err)
+        setUltimeNotizie([])
       } finally {
-        setLoadingNotizie(false)
+        if (!cancelled) {
+          clearTimeout(safetyTimeout)
+          setLoadingNotizie(false)
+        }
       }
     }
+
     loadUltimeNotizie()
+
+    return () => {
+      cancelled = true
+      clearTimeout(safetyTimeout)
+    }
   }, [])
 
   // Slider automatico ogni 5 secondi
