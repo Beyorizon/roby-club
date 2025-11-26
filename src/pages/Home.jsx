@@ -146,7 +146,7 @@ function Home() {
 
         const { data, error } = await supabase
           .from('annunci')
-          .select('id, titolo, contenuto, created_at, immagine_url')
+          .select('id, titolo, contenuto, created_at')
           .eq('published', true)
           .order('created_at', { ascending: false })
           .limit(5)
@@ -283,7 +283,6 @@ function Home() {
                     title={item.titolo}
                     subtitle={new Date(item.created_at).toLocaleDateString('it-IT')}
                     body={item.contenuto}
-                    imageSrc={item.immagine_url}
                     imageAlt={item.titolo}
                     isUniform={true}
                     itemId={item.id}
