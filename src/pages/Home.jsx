@@ -12,7 +12,7 @@ const SAGGI_YOUTUBE = [
     id: 1,
     titolo: "Saggio di Fine Anno 2025",
     url: "https://www.youtube.com/watch?v=iEfl8SAaDXY",
-    thumbnail: "https://www.youtube.com/watch?v=iEfl8SAaDXY/maxresdefault.jpg"
+    thumbnail: "https://img.youtube.com/vi/iEfl8SAaDXY/maxresdefault.jpg"
   },
   {
     id: 2,
