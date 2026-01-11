@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthProvider'
 
 function UserGuard({ children }) {
-  const { session, loading } = useAuth()
+  const { user, loading } = useAuth()
 
   if (loading) {
     return (
@@ -13,7 +13,8 @@ function UserGuard({ children }) {
     )
   }
 
-  if (!session) {
+  if (!user) {
+    console.log('[UserGuard] No user, redirecting to /login');
     return <Navigate to="/login" replace />
   }
 

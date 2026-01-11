@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import supabase from '../lib/supabase.js'
+import { listAnnunci } from '../lib/annunci.api.js'
 
 const formatDate = (dateString) => {
+  if (!dateString) return ''
   const date = new Date(dateString)
   const options = { 
     day: 'numeric', 
@@ -18,17 +19,9 @@ export default function Notizie() {
   useEffect(() => {
     const loadNotizie = async () => {
       try {
-        const { data, error } = await supabase
-          .from('annunci')
-          .select('id, titolo, contenuto, created_at')
-          .eq('published', true)
-          .order('created_at', { ascending: false })
-        
-        if (error) {
-          console.error('Errore caricamento notizie:', error)
-        } else {
-          setNotizie(data || [])
-        }
+        const data = await listAnnunci(true) // true for onlyPublished
+        console.log("[notizie] normalized count:", data.length)
+        setNotizie(data || [])
       } catch (err) {
         console.error('Errore caricamento notizie:', err)
       } finally {
@@ -51,7 +44,8 @@ export default function Notizie() {
           </div>
         ) : notizie.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-white/70 text-lg">Nessuna notizia disponibile al momento.</p>
+            <p className="text-white/70 text-lg">0 annunci trovati.</p>
+            <p className="text-white/50 text-sm mt-2">Controlla la console per i dettagli di debug.</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -61,13 +55,13 @@ export default function Notizie() {
                 className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 hover:bg-white/15 transition-all duration-300"
               >
                 <h2 className="text-xl font-semibold text-white mb-2">
-                  {notizia.titolo}
+                  {notizia.title}
                 </h2>
                 <p className="text-indigo-300 text-sm mb-4">
                   {formatDate(notizia.created_at)}
                 </p>
                 <div className="text-white/90 leading-relaxed whitespace-pre-wrap break-words">
-                  {notizia.contenuto}
+                  {notizia.body}
                 </div>
               </div>
             ))}

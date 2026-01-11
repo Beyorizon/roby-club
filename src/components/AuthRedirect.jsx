@@ -4,15 +4,15 @@ import { useAuth } from '../context/AuthProvider'
 import { sendLog } from '../lib/logger'
 
 function AuthRedirect() {
-  const { session, loading } = useAuth()
+  const { user, loading } = useAuth()
 
   useEffect(() => {
     sendLog('App', 'Render principale AuthRedirect', { 
       loading, 
-      hasSession: !!session,
-      userId: session?.user?.id 
+      hasUser: !!user,
+      userId: user?.uid 
     })
-  }, [loading, session])
+  }, [loading, user])
 
   // Mostra loading mentre verifica lo stato di autenticazione
   if (loading) {
@@ -24,11 +24,13 @@ function AuthRedirect() {
   }
 
   // Se l'utente è loggato, reindirizza a /home
-  if (session) {
+  if (user) {
+    console.log('[AuthRedirect] User authenticated, redirecting to /home', user.uid);
     return <Navigate to="/home" replace />
   }
 
   // Se l'utente non è loggato, reindirizza a /login
+  console.log('[AuthRedirect] No user, redirecting to /login');
   return <Navigate to="/login" replace />
 }
 

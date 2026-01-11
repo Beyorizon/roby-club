@@ -2,71 +2,33 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthProvider';
 import PWAInstallBar from './PWAInstallBar';
-import supabase from '../lib/supabase';
 
 function Navbar() {
-  const { session, isAdmin } = useAuth();
+  const { user, isAdmin, signOut, logout, userProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [ruolo, setRuolo] = useState(null);
 
   useEffect(() => {
-    const loadRuolo = async () => {
-      if (!session?.user) {
-        setRuolo(null);
-        return;
-      }
-      if (isAdmin) {
-        setRuolo("admin");
-        return;
-      }
-      try {
-        // Verifica se l'utente loggato è un genitore
-        const { data: genitore, error: genitoreError } = await supabase
-          .from("utenti")
-          .select("id, ruolo")
-          .eq("auth_id", session.user.id)
-          .eq("ruolo", "genitore")
-          .maybeSingle();
-        if (genitoreError) {
-          console.error("Errore rilevamento ruolo (genitore):", genitoreError.message);
-        }
-        if (genitore) {
-          setRuolo("genitore");
-          return;
-        }
-
-        // Altrimenti verifica se è un allievo
-        const { data: allievo, error: allievoError } = await supabase
-          .from("utenti")
-          .select("id, ruolo")
-          .eq("auth_id", session.user.id)
-          .eq("ruolo", "allievo")
-          .maybeSingle();
-        if (allievoError) {
-          console.error("Errore rilevamento ruolo (allievo):", allievoError.message);
-        }
-        if (allievo) {
-          setRuolo("allievo");
-          return;
-        }
-
-        setRuolo(null);
-      } catch (err) {
-        console.error("Errore inatteso nel rilevamento ruolo:", err);
-        setRuolo(null);
-      }
-    };
-    loadRuolo();
-  }, [session, isAdmin]);
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      navigate('/', { replace: true });
-    } catch (err) {
-      navigate('/', { replace: true });
+    // Ruolo è già in userProfile o isAdmin dal context
+    if (!user) {
+      setRuolo(null);
+      return;
     }
+    if (isAdmin) {
+      setRuolo("admin");
+      return;
+    }
+    if (userProfile?.role) {
+      setRuolo(userProfile.role);
+    }
+  }, [user, isAdmin, userProfile]);
+
+  const handleLogout = async () => {
+    // Usa la nuova funzione logout robusta
+    await logout();
+    // Non serve navigate perché logout() fa window.location.href
   };
 
   const scrollToSection = (sectionId) => {
@@ -256,7 +218,7 @@ function Navbar() {
             */}
 
             {/* Dashboard/Accedi - Quarta posizione */}
-            {session ? (
+            {user ? (
               <>
                 <Link
                   to={dashboardPath}
@@ -347,7 +309,7 @@ function Navbar() {
           </Link>
 
           {/* 4. Dashboard/Accedi */}
-          {session ? (
+          {user ? (
             <Link
               to={dashboardPath}
               className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors ${

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import supabase from '../../lib/supabase.js'
+import { listCourses } from '../../lib/courses.api.js'
+import { listUsers } from '../../lib/users.api.js'
+import { listPayments } from '../../lib/payments.api.js'
 
 const MESI_ACCADEMICO = [
   'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
@@ -18,6 +20,7 @@ export default function Riepilogo() {
   })
   const [paymentData, setPaymentData] = useState([])
   const [corsi, setCorsi] = useState([])
+  const [usersMap, setUsersMap] = useState({}) // Map id -> user
   const [kpiData, setKpiData] = useState({
     totaleIncassoIscrizioni: 0,
     totaleIncassoMensili: {},
@@ -26,65 +29,70 @@ export default function Riepilogo() {
   })
 
   useEffect(() => {
-    loadStats()
-    loadCorsi()
+    loadInitialData()
   }, [])
 
   useEffect(() => {
     loadPaymentData()
-  }, [filters])
+  }, [filters, usersMap])
 
-  const loadStats = async () => {
+  const loadInitialData = async () => {
+    setLoading(true)
     try {
-      const { data: utenti } = await supabase.from('utenti').select('ruolo')
-      const totalGenitori = utenti?.filter(u => u.ruolo === 'genitore').length || 0
-      const totalAllievi = utenti?.filter(u => u.ruolo === 'allievo').length || 0
+      // Load users
+      const users = await listUsers()
+      const uMap = {}
+      users.forEach(u => uMap[u.id] = u)
+      setUsersMap(uMap)
+
+      const totalGenitori = users.filter(u => u.ruolo === 'genitore').length
+      const totalAllievi = users.filter(u => u.ruolo === 'allievo').length
       setStats({ totalGenitori, totalAllievi })
+
+      // Load courses
+      const courses = await listCourses()
+      const sortedCourses = courses.sort((a, b) => a.nome.localeCompare(b.nome))
+      setCorsi(sortedCourses)
+
     } catch (error) {
-      console.error('Errore caricamento statistiche:', error)
+      console.error('Errore caricamento dati iniziali:', error)
     }
     setLoading(false)
   }
 
-  const loadCorsi = async () => {
-    try {
-      const { data } = await supabase.from('corsi').select('*').order('nome')
-      setCorsi(data || [])
-    } catch (error) {
-      console.error('Errore caricamento corsi:', error)
-    }
-  }
+  // Legacy loadStats removed as it is merged into loadInitialData
+  const loadStats = async () => {} 
+  const loadCorsi = async () => {}
 
   const loadPaymentData = async () => {
+    if (Object.keys(usersMap).length === 0) return
+
     try {
-      let query = supabase
-        .from('pagamenti')
-        .select(`
-          *,
-          utenti!pagamenti_allievo_id_fkey(nome, cognome, ruolo)
-        `)
-        .eq('anno', filters.anno)
-        .eq('utenti.ruolo', 'allievo')
-
-      if (filters.mese) {
-        query = query.eq('mese', filters.mese)
+      const filtersObj = {
+        anno: filters.anno,
+        mese: filters.mese,
+        corso_id: filters.corso // listPayments uses corso_id
       }
-      if (filters.corso) {
-        query = query.eq('corso_id', parseInt(filters.corso))
-      }
-
-      const { data } = await query
-      let filteredData = data || []
+      
+      const payments = await listPayments(filtersObj)
+      
+      // Enrich with user data and filter by role 'allievo' as per original code
+      let enrichedData = payments.map(p => ({
+        ...p,
+        utenti: usersMap[p.allievo_id] || {}
+      })).filter(p => p.utenti.ruolo === 'allievo')
 
       // filtro ricerca per nome/cognome
       if (filters.searchAllievo) {
-        filteredData = filteredData.filter(
+        enrichedData = enrichedData.filter(
           p =>
-            `${p.utenti ? p.utenti.nome || '' : ''} ${p.utenti ? p.utenti.cognome || '' : ''}`
+            `${p.utenti.nome || ''} ${p.utenti.cognome || ''}`
               .toLowerCase()
               .includes(filters.searchAllievo.toLowerCase())
         )
       }
+
+      const filteredData = enrichedData
 
       // raggruppa i dati per allievo
       const groupedData = {}
@@ -113,12 +121,10 @@ export default function Riepilogo() {
       // KPI
 
       // totale incasso iscrizioni
-      const { data: iscrizioni } = await supabase
-        .from('pagamenti')
-        .select('importo')
-        .eq('categoria', 'iscrizione')
-        .eq('stato', 'pagato')
-        .eq('anno', filters.anno)
+      const allPayments = await listPayments({ anno: filters.anno })
+      const iscrizioni = allPayments.filter(p => 
+        p.categoria === 'iscrizione' && p.stato === 'pagato'
+      )
 
       const totaleIncassoIscrizioni =
         iscrizioni?.reduce((sum, p) => sum + (p.importo || 0), 0) || 0

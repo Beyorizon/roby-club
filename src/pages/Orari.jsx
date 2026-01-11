@@ -1,49 +1,47 @@
 import { useState, useEffect } from 'react';
-import supabase from '../lib/supabase';
+import { listLessons } from "../lib/lessons.api.js";
+
+// STEP 5: Orari.jsx deve: NON usare useAuth se non serve.
+// Rimuovo useAuth per rendere la pagina indipendente dallo stato di auth locale.
 
 export default function Orari() {
   const [lezioni, setLezioni] = useState([]);
   const [loading, setLoading] = useState(true);
-  
 
-    useEffect(() => {
-  const fetchLezioni = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("lezioni")
-        .select("id, giorno, orario_inizio, orario_fine, nome_corso")
-        .order('orario_inizio', { ascending: true }); // Ordinamento per orario
-
-      if (error) {
-        console.error("[Supabase Error]", error);
-      } else {
-        console.log("[Supabase Data]", data);
+  useEffect(() => {
+    const fetchLezioni = async () => {
+      try {
+        const data = await listLessons();
         setLezioni(data || []);
+      } catch (err) {
+        console.error("[Firestore Error]", err);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("[Fetch Exception]", err);
-    }finally {
-    setLoading(false);  // <--- qui sblocchi l'interfaccia
-  }
+    };
+  
+    fetchLezioni();
+  }, []); 
+
+  // Chiavi normalizzate per i 5 giorni richiesti
+  const dayKeys = ["lunedi", "martedi", "mercoledi", "giovedi", "venerdi"];
+  
+  // Mappa label di fallback se non ci sono lezioni
+  const defaultLabels = {
+    lunedi: "Lunedì",
+    martedi: "Martedì",
+    mercoledi: "Mercoledì",
+    giovedi: "Giovedì",
+    venerdi: "Venerdì"
   };
 
-  fetchLezioni();
-}, []);
-
-
-    const giorniSettimana = [
-    "Lunedì",
-    "Martedì",
-    "Mercoledì",
-    "Giovedì",
-    "Venerdì",
-  ];
   const formatTime = (timeString) => {
-  if (!timeString) return "";
-  return timeString.slice(0, 5); // prende solo HH:MM
-};
+    if (!timeString) return "";
+    // Se è già formato HH:MM lo teniamo, altrimenti lo mostriamo raw
+    return timeString.includes(":") ? timeString.slice(0, 5) : timeString;
+  };
 
-    return (
+  return (
     <div className="p-6 text-center">
       <h2 className="text-2xl font-bold mb-6 text-white">Orario delle lezioni</h2>
 
@@ -53,28 +51,24 @@ export default function Orari() {
         <p className="text-white">Nessun orario disponibile.</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
-          {giorniSettimana.map((giorno) => {
-            
+          {dayKeys.map((key) => {
+            // Filtra per chiave normalizzata
             const lezioniDelGiorno = lezioni
-              .filter(
-                (lezione) =>
-                  lezione.giorno &&
-                  lezione.giorno.toLowerCase() === giorno.toLowerCase()
-              )
-              .sort((a, b) => {
-                // Ordinamento aggiuntivo per orario_inizio nel caso non sia già ordinato dal database
-                if (a.orario_inizio < b.orario_inizio) return -1;
-                if (a.orario_inizio > b.orario_inizio) return 1;
-                return 0;
-              });
-              
+              .filter(l => l.dayKey === key)
+              .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
+            
+            // Usa la label dalla prima lezione trovata, o fallback
+            const label = lezioniDelGiorno.length > 0 
+              ? lezioniDelGiorno[0].dayLabel 
+              : defaultLabels[key];
+
             return (
               <div
-                key={giorno}
+                key={key}
                 className="bg-white/10 p-4 rounded-lg shadow-md text-center"
               >
                 <h3 className="text-lg font-bold text-indigo-200 mb-4">
-                  {giorno}
+                  {label}
                 </h3>
 
                 {lezioniDelGiorno.length > 0 ? (
@@ -84,10 +78,11 @@ export default function Orari() {
                       className="mb-3 p-3 bg-indigo-600 rounded-lg text-white"
                     >
                       <h4 className="font-semibold">
-                        {lezione.nome_corso || "Corso"}
+                        {lezione.courseName || "Corso"}
                       </h4>
                       <p className="text-sm">
-                        {formatTime(lezione.orario_inizio)} - {formatTime(lezione.orario_fine)}
+                        {formatTime(lezione.startTime)}
+                        {lezione.endTime ? ` - ${formatTime(lezione.endTime)}` : ""}
                       </p>
                     </div>
                   ))

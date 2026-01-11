@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import CardGlass from '../components/CardGlass.jsx'
-import { supabase } from '../lib/supabase.js'
 import { sendLog } from '../lib/logger'
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../lib/firebase";
 
 function Login() {
   const [formData, setFormData] = useState({ email: '', password: '' })
@@ -22,33 +23,33 @@ function Login() {
     setLoading(true)
     setError('')
 
-    sendLog('Login', 'Tentativo login', { email: formData.email })
-
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password
-      })
+      if (import.meta.env.DEV) console.log("[Login] Attempting login for:", formData.email);
+      await signInWithEmailAndPassword(auth, formData.email, formData.password);
       
-      sendLog('Login', 'Risultato login', { 
-        success: !error, 
-        error: error?.message, 
-        hasSession: !!data?.session,
-        userId: data?.session?.user?.id 
-      })
-      
-      if (error) throw error
-
-      const session = data?.session
-      if (!session?.user?.id) throw new Error("Sessione non valida")
-      console.log(session)
-
-      // Dopo il login, reindirizza alla home (il ruolo verrà gestito dai componenti che leggono dalla tabella 'utenti')
+      if (import.meta.env.DEV) console.log("[Login] Success");
       navigate("/home", { replace: true })
+      
     } catch (err) {
-      console.error(err)
-      sendLog('Login', 'Errore login', { error: err.message })
-      setError("Credenziali non valide. Riprova.")
+      console.error("[Login] Error:", err.code, err.message)
+      
+      let msg = "Credenziali non valide."
+      if (err.code === 'auth/invalid-credential') msg = "Email o password errati."
+      if (err.code === 'auth/user-not-found') msg = "Utente non trovato."
+      if (err.code === 'auth/wrong-password') msg = "Password errata."
+      if (err.code === 'auth/too-many-requests') msg = "Troppi tentativi. Riprova più tardi."
+      
+      setError(msg)
+      
+      // Logger non bloccante
+      try {
+        await sendLog('Login', 'Errore login', { 
+            error: err.message, 
+            code: err.code 
+        });
+      } catch (logErr) {
+         console.warn("[Login] Failed to log error (ignored):", logErr);
+      }
     } finally {
       setLoading(false)
     }
@@ -100,15 +101,15 @@ function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Accesso in corso...' : 'Accedi'}
               </button>
             </form>
-
-            <div className="mt-4 text-center">
-              <Link to="/signup" className="text-indigo-400 hover:text-indigo-300 text-sm">
-                Non sei registrato? Registrati
+            
+            <div className="text-center mt-6">
+              <Link to="/" className="text-white/60 hover:text-white text-sm transition-colors">
+                ← Torna indietro
               </Link>
             </div>
           </div>

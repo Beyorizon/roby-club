@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { useAuth } from "../context/AuthProvider"
-import { supabase } from "../lib/supabase.js"
+import { getUser, listChildren, updateUser } from "../lib/users.api.js"
+import { listPaymentsForUser } from "../lib/payments.api.js"
+import { listCourses } from "../lib/courses.api.js"
 
 const MESI_ACCADEMICO = [
   "Settembre","Ottobre","Novembre","Dicembre",
@@ -26,18 +28,12 @@ function DashboardUtente() {
 
   // Carica dati utente, pagamenti e figli (se genitore)
   useEffect(() => {
-    if (!user?.id) return
+    if (!user?.uid) return // useAuth returns user object with uid
     
     const loadData = async () => {
       try {
         // Carica i dati dell'utente loggato
-        const { data: utenteData, error: userError } = await supabase
-          .from("utenti")
-          .select("*")
-          .eq("auth_id", user.id)
-          .single()
-        
-        if (userError) throw userError
+        const utenteData = await getUser(user.uid)
         
         if (utenteData) {
           setUtente(utenteData)
@@ -56,64 +52,31 @@ function DashboardUtente() {
           })
 
           // Carica i pagamenti collegati all'utente
-          const { data: pagamentiData, error: pagamentiError } = await supabase
-            .from("pagamenti")
-            .select("*")
-            .eq("allievo_id", utenteData.id)
-          
-          if (pagamentiError) throw pagamentiError
+          const pagamentiData = await listPaymentsForUser(utenteData.id) // using firestore doc id
           setPagamenti(pagamentiData || [])
 
           // Se è un genitore, carica anche i figli
           if (utenteData.ruolo === 'genitore') {
-            const { data: figliData, error: figliError } = await supabase
-              .from("utenti")
-              .select("id, nome, cognome")
-              .eq("genitore_id", utenteData.id)
-            
-            if (figliError) throw figliError
+            const figliData = await listChildren(utenteData.id)
             setFigli(figliData || [])
           }
         }
 
         // Carica i corsi disponibili
-        const { data: corsiData } = await supabase.from("corsi").select("id, nome")
+        const corsiData = await listCourses()
         setCorsi(corsiData || [])
 
-        // Subscription realtime per i pagamenti
-        if (utenteData) {
-          const channel = supabase
-            .channel('pagamenti-utente')
-            .on(
-              'postgres_changes',
-              {
-                event: '*',
-                schema: 'public',
-                table: 'pagamenti',
-                filter: `allievo_id=eq.${utenteData.id}`
-              },
-              async () => {
-                const { data: updatedPagamenti } = await supabase
-                  .from("pagamenti")
-                  .select("*")
-                  .eq("allievo_id", utenteData.id)
-                setPagamenti(updatedPagamenti || [])
-              }
-            )
-            .subscribe()
-          
-          return () => {
-            supabase.removeChannel(channel)
-          }
-        }
-      } catch (error) {
-        console.error('Errore nel caricamento dati:', error)
+        // Realtime subscription removed as we are moving away from Supabase.
+        // If needed, implement onSnapshot from firebase/firestore.
+
+      } catch (err) {
+        console.error("Errore caricamento dati:", err)
         setMessage({ type: "error", text: "Errore nel caricamento dei dati" })
       }
     }
-    
+
     loadData()
-  }, [user?.id])
+  }, [user])
 
   // Salvataggio profilo
   const handleSubmit = async (e) => {
@@ -141,18 +104,13 @@ function DashboardUtente() {
         cleanData.data_nascita = `${yyyy}-${mm}-${gg}` // formato accettato da Postgres
       }
 
-      const { error } = await supabase
-        .from("utenti")
-        .update(cleanData)
-        .eq("auth_id", user.id)
-
-      if (error) {
+      try {
+        await updateUser(user.id, cleanData)
+        setMessage({ type: "success", text: "Profilo aggiornato!" })
+      } catch (error) {
         console.error(error)
         setMessage({ type: "error", text: "Errore nel salvataggio" })
-        return
       }
-
-      setMessage({ type: "success", text: "Profilo aggiornato!" })
     } finally {
       setSaving(false)
     }

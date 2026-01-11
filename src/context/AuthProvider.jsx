@@ -1,311 +1,179 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase.js'
-import { sendLog } from '../lib/logger'
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  setPersistence,
+  browserLocalPersistence,
+} from "firebase/auth";
+import { serverTimestamp } from "firebase/firestore";
+import { auth } from "../lib/firebase";
+import { sendLog } from "../lib/logger";
+import { getUser, upsertUserProfile } from "../lib/users.api";
+
+/**
+ * Struttura "users/{uid}" consigliata:
+ * {
+ *   email: string,
+ *   role: "admin" | "allievo" | "genitore" | "insegnante",
+ *   createdAt: timestamp,
+ *   updatedAt: timestamp
+ * }
+ */
 
 const AuthContext = createContext({
-  session: null,
-  user: null,
+  user: null, // Firebase user
   loading: true,
   isAdmin: false,
-  userProfile: null,
-  signIn: async () => {},
-  signOut: async () => {}
-})
+  userProfile: null, // Firestore doc users/{uid}
+  signIn: async (email, password) => {},
+  signOut: async () => {},
+  logout: async () => {},
+});
 
-export const useAuth = () => useContext(AuthContext)
+export const useAuth = () => useContext(AuthContext);
 
-export default function AuthProvider({ children }) {
-  const [session, setSession] = useState(null)
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [userProfile, setUserProfile] = useState(null)
+// Se vuoi “bootstrap” admin via email (solo DEV), metti qui le email admin:
+const ADMIN_EMAILS = new Set([
+  // "tuoadmin@gmail.com",
+]);
 
-  // Check if user is admin
-  const checkAdminStatus = async (user) => {
-    if (!user) {
-      setIsAdmin(false)
-      setUserProfile(null)
-      return
-    }
-
-    try {
-      // Controllo diretto email admin
-      const adminEmail = 'grafica.valeriobottiglieri@gmail.com'
-      const isUserAdmin = user.email === adminEmail
-      setIsAdmin(isUserAdmin)
-
-      // Carica profilo utente
-      const { data: profile, error } = await supabase
-        .from('utenti')
-        .select('*')
-        .eq('auth_id', user.id)
-        .single()
-
-      if (!error && profile) {
-        setUserProfile(profile)
-      }
-    } catch (error) {
-      console.error('Errore controllo admin:', error)
-      // Non forzare isAdmin a false in caso di errore profilo
-      setUserProfile(null)
-    }
-  }
-
-  // Sign in function
-  const signIn = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-    
-    if (error) {
-      throw new Error(error.message)
-    }
-    
-    return data
-  }
-
-  // Sign out con pulizia completa e reload forzato
-  const signOut = async () => {
-    console.log('🔄 [DEBUG] Logout clicked')
-    
-    try {
-      // 1. Esegui supabase.auth.signOut()
-      console.log('🚀 [DEBUG] Calling supabase.auth.signOut()...')
-      const { error } = await supabase.auth.signOut()
-      
-      if (error) {
-        console.error('❌ [DEBUG] Supabase signOut error:', error)
-        // Continua comunque con la pulizia locale
-      } else {
-        console.log('✅ [DEBUG] Supabase signOut done')
-      }
-      
-      // 2. Pulizia localStorage e IndexedDB
-      console.log('🧹 [DEBUG] Starting local storage and IndexedDB cleanup...')
-      
-      // Rimuovi token generici
-      localStorage.removeItem('supabase.auth.token')
-      
-      // Rimuovi token specifici per questo progetto Supabase
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      if (supabaseUrl) {
-        const urlPart = supabaseUrl.split('://')[1]
-        localStorage.removeItem(`sb-${urlPart}-auth-token`)
-        console.log(`🗑️ [DEBUG] Removed sb-${urlPart}-auth-token from localStorage`)
-      }
-      
-      // Rimuovi tutti i possibili token Supabase dal localStorage
-      const keysToRemove = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && (key.includes('supabase') || key.includes('sb-'))) {
-          keysToRemove.push(key)
-        }
-      }
-      
-      keysToRemove.forEach(key => {
-        localStorage.removeItem(key)
-        console.log(`🗑️ [DEBUG] Removed ${key} from localStorage`)
-      })
-      
-      // Pulizia IndexedDB
-      try {
-        if ('indexedDB' in window) {
-          await new Promise((resolve, reject) => {
-            const deleteReq = indexedDB.deleteDatabase('supabase-auth')
-            deleteReq.onsuccess = () => {
-              console.log('🗑️ [DEBUG] IndexedDB supabase-auth deleted successfully')
-              resolve()
-            }
-            deleteReq.onerror = () => {
-              console.log('⚠️ [DEBUG] IndexedDB deletion failed or database did not exist')
-              resolve() // Non bloccare il processo
-            }
-            deleteReq.onblocked = () => {
-              console.log('⚠️ [DEBUG] IndexedDB deletion blocked')
-              resolve() // Non bloccare il processo
-            }
-          })
-        }
-      } catch (dbError) {
-        console.log('⚠️ [DEBUG] IndexedDB cleanup error:', dbError.message)
-      }
-      
-      console.log('✅ [DEBUG] Local storage and IndexedDB cleared')
-      
-      // 3. Reset dello stato locale
-      setIsAdmin(false)
-      setUserProfile(null)
-      setSession(null)
-      setUser(null)
-      
-      // 4. Reload forzato della pagina
-      console.log('🔄 [DEBUG] Reloading page…')
-      
-      // Piccolo delay per permettere ai log di essere visualizzati
-      setTimeout(() => {
-        window.location.reload()
-      }, 100)
-      
-    } catch (err) {
-      console.error('💥 [DEBUG] SignOut error:', {
-        message: err.message,
-        name: err.name,
-        stack: err.stack?.slice(0, 200)
-      })
-      
-      // Anche in caso di errore, esegui la pulizia locale e il reload
-      setIsAdmin(false)
-      setUserProfile(null)
-      setSession(null)
-      setUser(null)
-      
-      console.log('🔄 [DEBUG] Reloading page after error…')
-      setTimeout(() => {
-        window.location.reload()
-      }, 100)
-    }
-  }
-
-  useEffect(() => {
-    let isMounted = true
-    const lastFetchedAuthIdRef = { current: null }
-
-    const fetchProfile = async (authId) => {
-      if (!authId) return
-
-      // evita doppi fetch (init + INITIAL_SESSION/SIGNED_IN)
-      if (lastFetchedAuthIdRef.current === authId) return
-      lastFetchedAuthIdRef.current = authId
-
-      const { data, error } = await supabase
-        .from('utenti')
-        .select('*')
-        .eq('auth_id', authId)
-        .single()
-
-      if (error) {
-        console.error('[supabase] utenti fetch error:', error?.message || error?.code || 'unknown')
-        if (!isMounted) return
-        setUserProfile(null)
-        // Modifica: usa fallback via email per admin
-        const isEmailAdmin = user?.email && ADMIN_EMAILS.has(user.email)
-        setIsAdmin(isEmailAdmin)
-        return
-      }
-
-      if (!isMounted) return
-      setUserProfile(data || null)
-      // Modifica: considera sia ruolo del profilo che fallback email
-      const isEmailAdmin = user?.email && ADMIN_EMAILS.has(user.email)
-      const isRoleAdmin = typeof data?.ruolo === 'string' && data.ruolo.toLowerCase() === 'admin'
-      setIsAdmin(isRoleAdmin || isEmailAdmin)
-    }
-
-    const init = async () => {
-      console.log('[AuthProvider] Inizializzazione...')
-      sendLog('AuthProvider', 'Avvio app - controllo sessione')
-      
-      try {
-        console.log('🔄 [DEBUG] Starting auth initialization...')
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession()
-        console.log('[AuthProvider] Sessione ottenuta:', initialSession)
-        sendLog('AuthProvider', 'getSession risultato', { session: initialSession ? 'presente' : 'null', error })
-        
-        if (error) {
-          console.error('[supabase] getSession error:', error?.message || error?.code || 'unknown')
-          console.error('[AuthProvider] Errore nel recupero della sessione:', error)
-          return
-        }
-        console.log('📋 [DEBUG] Initial session:', !!initialSession)
-        if (!isMounted) return
-        setSession(initialSession || null)
-        setUser(initialSession?.user ?? null)
-        await fetchProfile(initialSession?.user?.id || null)
-      } catch (err) {
-        console.error('[auth] init error:', err?.message || 'unknown')
-        console.error('[AuthProvider] Errore durante l\'inizializzazione:', err)
-        sendLog('AuthProvider', 'Errore durante inizializzazione', { error: err.message })
-      } finally {
-        if (isMounted) {
-          console.log('✅ [DEBUG] Auth initialization complete, setting loading to false')
-          setLoading(false)
-        }
-      }
-    }
-
-    // Timeout di sicurezza per evitare loading infinito
-    const safetyTimeout = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn('⚠️ [DEBUG] Safety timeout triggered - forcing loading to false')
-        setLoading(false)
-      }
-    }, 10000) // 10 secondi
-
-    init()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      // Log dettagliato per ogni evento auth
-      console.log(`🔔 [DEBUG] Auth state changed: ${event}, session: ${!!newSession}`)
-      sendLog('AuthProvider', 'Evento onAuthStateChange', { event, session: newSession ? 'presente' : 'null' })
-      
-      if (event === 'SIGNED_OUT') {
-        console.log('👋 [DEBUG] SIGNED_OUT event received - logout successful')
-        sendLog('AuthProvider', 'SIGNED_OUT - pulizia stato')
-        // Assicuriamoci che lo stato sia pulito
-        if (isMounted) {
-          setSession(null)
-          setUser(null)
-          setUserProfile(null)
-          setIsAdmin(false)
-          setLoading(false) // Assicurati che loading sia false dopo logout
-        }
-      }
-
-      if (!isMounted) return
-      setSession(newSession || null)
-      setUser(newSession?.user ?? null)
-
-      if (newSession?.user?.id) {
-        sendLog('AuthProvider', 'Impostazione nuova sessione', { userId: newSession.user.id })
-        await fetchProfile(newSession.user.id)
-      } else {
-        setUserProfile(null)
-        setIsAdmin(false)
-      }
-      
-      // Assicurati sempre che loading sia false dopo ogni cambio di stato
-      if (isMounted) {
-        setLoading(false)
-      }
-    })
-
-    return () => {
-      sendLog('AuthProvider', 'Cleanup listener')
-      isMounted = false
-      subscription?.unsubscribe?.()
-      clearTimeout(safetyTimeout)
-    }
-  }, [])
-
-  const value = {
-    session,
-    user,
-    loading,
-    isAdmin,
-    userProfile,
-    signIn,
-    signOut
-  }
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  )
+function roleFromProfile(profile) {
+  const role = profile?.role || profile?.ruolo; // Support both naming conventions
+  if (!role) return null;
+  return String(role).toLowerCase();
 }
 
-// Aggiunta: fallback per riconoscere admin tramite email
-const ADMIN_EMAILS = new Set(['grafica.valeriobottiglieri@gmail.com'])
+export async function logout() {
+  try {
+    if (import.meta.env.DEV) console.log("[logout] start");
+    await firebaseSignOut(auth);
+    if (import.meta.env.DEV) console.log("[logout] signOut done");
+
+    // hard cleanup per evitare sessioni “fantasma”
+    localStorage.removeItem("firebase:authUser:" + auth.app.options.apiKey + ":[DEFAULT]");
+    sessionStorage.clear();
+
+    // opzionale: clear indexedDB (firebase persistence)
+    if (window.indexedDB?.databases) {
+      try {
+        const dbs = await window.indexedDB.databases();
+        for (const db of dbs) {
+          if (db.name && db.name.toLowerCase().includes("firebase")) {
+            window.indexedDB.deleteDatabase(db.name);
+          }
+        }
+      } catch (err) {
+        console.warn("[logout] indexedDB cleanup error", err);
+      }
+    }
+
+    // porta sempre al login
+    window.location.href = "/login";
+  } catch (e) {
+    console.error("[logout] error", e);
+    // fallback: forziamo comunque la navigazione
+    window.location.href = "/login";
+  }
+}
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // evita loop in StrictMode
+  const [readyOnce, setReadyOnce] = useState(false);
+
+  useEffect(() => {
+    let unsub = null;
+
+    (async () => {
+      try {
+        // Persistenza login in browser (utile per PWA)
+        await setPersistence(auth, browserLocalPersistence);
+      } catch (e) {
+        // non bloccare
+        console.warn("[AuthProvider] setPersistence failed:", e);
+      }
+
+      unsub = onAuthStateChanged(auth, async (fbUser) => {
+        try {
+          // Non impostare loading a true qui se vogliamo evitare sfarfallii eccessivi,
+          // ma per sicurezza lo facciamo per gestire il cambio stato
+          setLoading(true);
+          setUser(fbUser);
+
+          if (!fbUser) {
+            setUserProfile(null);
+            setLoading(false);
+            return;
+          }
+
+          // Leggo profilo da Firestore
+          try {
+            // 1. Try to get existing profile
+            let profile = await getUser(fbUser.uid);
+
+            // 2. If not found, create default profile
+            if (!profile) {
+                console.log('[AuthProvider] Profile not found for', fbUser.uid, '- creating default...');
+                
+                // Default fallback
+                const bootstrapRole = ADMIN_EMAILS.has(fbUser.email?.toLowerCase())
+                   ? "admin"
+                   : "allievo"; // Default to allievo, user can be updated by admin later
+                
+                console.log('[AuthProvider] Creating new default profile:', bootstrapRole);
+                
+                const newProfile = {
+                   email: fbUser.email || null,
+                   role: bootstrapRole,
+                   createdAt: serverTimestamp(),
+                   updatedAt: serverTimestamp(),
+                };
+                
+                await upsertUserProfile(fbUser.uid, newProfile);
+                profile = { 
+                    id: fbUser.uid, 
+                    ...newProfile,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                };
+            }
+            
+            setUserProfile(profile);
+            
+          } catch (err) {
+            console.error("[AuthProvider] Error processing user profile:", err);
+          }
+        } finally {
+          setLoading(false);
+        }
+      });
+    })();
+
+    return () => {
+      if (unsub) unsub();
+    };
+  }, []);
+
+  // Calcola isAdmin in base al ruolo
+  const isAdmin = useMemo(() => {
+      const r = roleFromProfile(userProfile);
+      return r === "admin";
+  }, [userProfile]);
+
+  const value = {
+    user,
+    userProfile,
+    isAdmin,
+    loading,
+    signIn: signInWithEmailAndPassword,
+    signOut: firebaseSignOut,
+    logout
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}

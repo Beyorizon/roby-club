@@ -1,6 +1,6 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import AuthProvider from './context/AuthProvider.jsx'
+import { AuthProvider } from "./context/AuthProvider";
 import UserGuard from './components/UserGuard.jsx'
 import AdminGuard from './components/AdminGuard.jsx'
 import AuthRedirect from './components/AuthRedirect.jsx'
@@ -14,6 +14,8 @@ import SignupGenitore from './pages/SignupGenitore.jsx'
 import SignupAllievo from './pages/SignupAllievo.jsx'
 import Orari from './pages/Orari.jsx'
 import Notizie from './pages/Notizie.jsx'
+import Welcome from "./pages/Welcome";
+
 
 // Dashboard
 import DashboardUtente from './pages/DashboardUtente.jsx'
@@ -29,6 +31,9 @@ import Riepilogo from './pages/admin/Riepilogo.jsx'
 
 import './App.css'
 
+import { db } from "./lib/firebase";
+
+
 function AppContent() {
   const location = useLocation()
   const hideNavbar = location.pathname === '/' || location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/signup-genitore' || location.pathname === '/signup-allievo'
@@ -38,8 +43,8 @@ function AppContent() {
       {!hideNavbar && <Navbar />}
       <main className="pt-0">
         <Routes>
-          {/* Route principale - Redirect automatico basato su stato auth */}
-          <Route path="/" element={<AuthRedirect />} />
+          {/* Route principale - Welcome page gestisce il redirect se autenticato */}
+          <Route path="/" element={<Welcome />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/signup-genitore" element={<SignupGenitore />} />
@@ -49,8 +54,6 @@ function AppContent() {
           <Route path="/home" element={<UserGuard><Home /></UserGuard>} />
           <Route path="/orari" element={<UserGuard><Orari /></UserGuard>} />
           <Route path="/notizie" element={<UserGuard><Notizie /></UserGuard>} />
-          <Route path="/orari" element={<Orari />} />
-          <Route path="/notizie" element={<Notizie />} />
 
           {/* Dashboard unificata per utenti autenticati */}
           <Route 
@@ -105,7 +108,7 @@ function AppContent() {
 
 function App() {
   return (
-    <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || '/'}>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <AuthProvider>
         <AppContent />
       </AuthProvider>

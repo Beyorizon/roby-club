@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import supabase from '../lib/supabase.js'
+import { listAnnunci, createAnnuncio, updateAnnuncio, deleteAnnuncio as apiDeleteAnnuncio } from '../lib/annunci.api.js'
+import { listUsers, updateUser, getAllUsersForAdmin } from '../lib/users.api.js'
+import { listCourses, getUserEnrollments, enrollUser, unenrollUser } from '../lib/courses.api.js'
 import CardGlass from '../components/CardGlass.jsx'
 
 export default function Admin() {
@@ -23,15 +25,11 @@ export default function Admin() {
   // Carica annunci
   const loadAnnunci = async () => {
     setLoadingAnnunci(true)
-    const { data, error } = await supabase
-      .from('annunci')
-      .select('*')
-      .order('created_at', { ascending: false })
-    
-    if (error) {
-      showMessage('error', 'Errore nel caricamento annunci: ' + error.message)
-    } else {
+    try {
+      const data = await listAnnunci()
       setAnnunci(data || [])
+    } catch (error) {
+      showMessage('error', 'Errore nel caricamento annunci: ' + error.message)
     }
     setLoadingAnnunci(false)
   }
@@ -39,40 +37,34 @@ export default function Admin() {
   // Carica utenti
   const loadUtenti = async () => {
     setLoadingUtenti(true)
-    const { data, error } = await supabase
-      .from('utenti')
-      .select('*')
-      .order('created_at', { ascending: false })
-    
-    if (error) {
-      showMessage('error', 'Errore nel caricamento utenti: ' + error.message)
-    } else {
-      setUtenti(data || [])
+    try {
+      const data = await getAllUsersForAdmin()
+      setUtenti(data)
+    } catch (error) {
+      console.error('Errore caricamento utenti', error)
+    } finally {
+      setLoadingUtenti(false)
     }
-    setLoadingUtenti(false)
   }
 
   // Carica corsi
   const loadCorsi = async () => {
-    const { data, error } = await supabase
-      .from('corsi')
-      .select('*')
-      .order('nome')
-    
-    if (!error) {
-      setCorsi(data || [])
+    try {
+      const data = await listCourses()
+      const sorted = data.sort((a, b) => a.nome.localeCompare(b.nome))
+      setCorsi(sorted)
+    } catch (error) {
+      console.error('Errore caricamento corsi', error)
     }
   }
 
   // Carica corsi di un utente
   const loadUserCorsi = async (userId) => {
-    const { data, error } = await supabase
-      .from('iscrizioni')
-      .select('corso_id')
-      .eq('auth_id', userId)
-    
-    if (!error) {
-      setUserCorsi(data?.map(i => i.corso_id) || [])
+    try {
+      const courses = await getUserEnrollments(userId)
+      setUserCorsi(courses || [])
+    } catch (error) {
+      console.error('Errore caricamento corsi utente', error)
     }
   }
 
@@ -95,12 +87,7 @@ export default function Admin() {
     try {
       if (editingAnnuncio) {
         // Update
-        const { error } = await supabase
-          .from('annunci')
-          .update(formAnnuncio)
-          .eq('id', editingAnnuncio.id)
-        
-        if (error) throw error
+        await updateAnnuncio(editingAnnuncio.id, formAnnuncio)
         
         // Optimistic update
         setAnnunci(prev => prev.map(a => 
@@ -111,15 +98,10 @@ export default function Admin() {
         setEditingAnnuncio(null)
       } else {
         // Create
-        const { data, error } = await supabase
-          .from('annunci')
-          .insert([formAnnuncio])
-          .select()
-        
-        if (error) throw error
+        const newAnnuncio = await createAnnuncio(formAnnuncio)
         
         // Optimistic update
-        setAnnunci(prev => [data[0], ...prev])
+        setAnnunci(prev => [newAnnuncio, ...prev])
         showMessage('success', 'Annuncio creato con successo')
       }
       
@@ -135,12 +117,7 @@ export default function Admin() {
     const newPublished = !annuncio.published
     
     try {
-      const { error } = await supabase
-        .from('annunci')
-        .update({ published: newPublished })
-        .eq('id', annuncio.id)
-      
-      if (error) throw error
+      await updateAnnuncio(annuncio.id, { published: newPublished })
       
       // Optimistic update
       setAnnunci(prev => prev.map(a => 
@@ -157,12 +134,7 @@ export default function Admin() {
     if (!confirm('Sei sicuro di voler eliminare questo annuncio?')) return
     
     try {
-      const { error } = await supabase
-        .from('annunci')
-        .delete()
-        .eq('id', id)
-      
-      if (error) throw error
+      await apiDeleteAnnuncio(id)
       
       // Optimistic update
       setAnnunci(prev => prev.filter(a => a.id !== id))
@@ -184,12 +156,7 @@ export default function Admin() {
   // Gestione Utenti
   const updateUserRole = async (userId, newRole) => {
     try {
-      const { error } = await supabase
-        .from('utenti')
-        .update({ ruolo: newRole })
-        .eq('auth_id', userId)
-      
-      if (error) throw error
+      await updateUser(userId, { ruolo: newRole })
       
       // Optimistic update
       setUtenti(prev => prev.map(u => 
@@ -204,12 +171,7 @@ export default function Admin() {
 
   const updateUserDataIscrizione = async (userId, newDate) => {
     try {
-      const { error } = await supabase
-        .from('utenti')
-        .update({ data_iscrizione: newDate })
-        .eq('auth_id', userId)
-      
-      if (error) throw error
+      await updateUser(userId, { data_iscrizione: newDate })
       
       // Optimistic update
       setUtenti(prev => prev.map(u => 
@@ -222,25 +184,22 @@ export default function Admin() {
     }
   }
 
+  // NOTE: toggleUserCorso logic depends on how enrollments are stored.
+  // In previous turns, we decided to store courses in user profile (corso_1, corso_2, etc.) or separate collection.
+  // In DashboardFiglio and AllieviDettaglio we saw fields like corso_1, corso_2...
+  // However, listCourses in courses.api.js mentions 'iscrizioni' collection in getUserEnrollments.
+  // We should unify this. For now, let's look at courses.api.js again.
+  // Wait, I see getUserEnrollments in courses.api.js uses 'iscrizioni' collection.
+  // But DashboardFiglio uses fields in user document.
   const toggleUserCorso = async (userId, corsoId, isEnrolled) => {
     try {
       if (isEnrolled) {
         // Rimuovi iscrizione
-        const { error } = await supabase
-          .from('iscrizioni')
-          .delete()
-          .eq('auth_id', userId)
-          .eq('corso_id', corsoId)
-        
-        if (error) throw error
+        await unenrollUser(userId, corsoId)
         setUserCorsi(prev => prev.filter(id => id !== corsoId))
       } else {
         // Aggiungi iscrizione
-        const { error } = await supabase
-          .from('iscrizioni')
-          .insert([{ auth_id: userId, corso_id: corsoId }])
-        
-        if (error) throw error
+        await enrollUser(userId, corsoId)
         setUserCorsi(prev => [...prev, corsoId])
       }
       

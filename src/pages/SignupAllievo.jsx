@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase.js'
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { db } from '../lib/firebase'
 import CardGlass from '../components/CardGlass.jsx'
 
 function SignupAllievo() {
@@ -23,24 +25,25 @@ function SignupAllievo() {
 
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const auth = getAuth()
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
+      const user = userCredential.user
+
+      // Crea documento utente
+      await setDoc(doc(db, 'users', user.uid), {
+        auth_id: user.uid,
         email: formData.email,
-        password: formData.password,
-        options: { 
-          data: { 
-            nome: formData.nome, 
-            cognome: formData.cognome,
-            telefono: formData.telefono,
-            ruolo: "allievo"
-          } 
-        }
+        nome: formData.nome,
+        cognome: formData.cognome,
+        telefono: formData.telefono,
+        ruolo: 'allievo',
+        created_at: serverTimestamp()
       })
-      if (error) throw error
 
       navigate('/dashboard-utente')
     } catch (err) {
       console.error(err)
-      setError('Errore durante la registrazione.')
+      setError('Errore durante la registrazione: ' + err.message)
     } finally {
       setLoading(false)
     }

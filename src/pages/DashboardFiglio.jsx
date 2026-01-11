@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { supabase } from "../lib/supabase.js"
 import { useAuth } from '../context/AuthProvider'
+import { getUser, updateUser } from "../lib/users.api.js"
+import { listCourses } from "../lib/courses.api.js"
 
 export default function DashboardFiglio() {
   const { id } = useParams()
@@ -40,18 +41,7 @@ export default function DashboardFiglio() {
   useEffect(() => {
     const loadData = async () => {
       // Carica dati allievo
-      const { data: allieveData } = await supabase
-        .from("utenti")
-        .select(`
-          id, nome, cognome, data_nascita, cellulare, email, data_iscrizione,
-          nome_genitore1, cellulare_genitore1,
-          nome_genitore2, cellulare_genitore2,
-          taglia_tshirt, taglia_pantalone, numero_scarpe,
-          corso_1, corso_2, corso_3, corso_4, corso_5,
-          prezzo_corso1, prezzo_corso2, prezzo_corso3, prezzo_corso4, prezzo_corso5
-        `)
-        .eq("id", id)
-        .single()
+      const allieveData = await getUser(id)
       
       setAllievo(allieveData)
       setEditData({
@@ -65,10 +55,7 @@ export default function DashboardFiglio() {
       })
       
       // Carica corsi disponibili
-      const { data: corsiData } = await supabase
-        .from("corsi")
-        .select("id, nome")
-        .order('nome')
+      const corsiData = await listCourses()
       
       setCorsi(corsiData || [])
     }
@@ -100,12 +87,7 @@ export default function DashboardFiglio() {
   const handleSave = async () => {
     try {
       setSaving(true)
-      const { error } = await supabase
-        .from('utenti')
-        .update(editData)
-        .eq('id', id)
-      
-      if (error) throw error
+      await updateUser(id, editData)
       
       setAllievo({ ...allievo, ...editData })
       setIsEditing(false)

@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthProvider';
-import supabase from '../lib/supabase';
 import Carousel from "../components/Carousel";
 import AnnunciCarousel from '../components/AnnunciCarousel';
 import Logo from "../assets/icon_logo.svg";
 
-// Array locale per i saggi YouTube (TODO: spostare su Supabase in futuro)
+// Array locale per i saggi YouTube (TODO: spostare su Firestore in futuro)
 const SAGGI_YOUTUBE = [
   {
     id: 1,
@@ -96,8 +95,11 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString('it-IT', options)
 }
 
+import { listLessons } from '../lib/lessons.api.js';
+import { listAnnunci } from '../lib/annunci.api.js';
+import { listCourses } from '../lib/courses.api.js';
+
 function Home() {
-  const { session } = useAuth();
   const [lezioniOggi, setLezioniOggi] = useState([]);
   const [loadingLezioni, setLoadingLezioni] = useState(true);
   const [ultimeNotizie, setUltimeNotizie] = useState([]);
@@ -107,21 +109,15 @@ function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isSliderPaused, setIsSliderPaused] = useState(false);
 
-  // Carica lezioni del giorno corrente da Supabase
+  // Carica lezioni del giorno corrente da Firebase
   useEffect(() => {
     const loadLezioniOggi = async () => {
       try {
         const giornoCorrente = getToday();
-        const { data, error } = await supabase
-          .from('lezioni')
-          .select('id, giorno, orario_inizio, orario_fine, nome_corso')
-          .eq('giorno', giornoCorrente)
-          .order('orario_inizio');
-
-        if (error) {
-          console.error('Errore caricamento lezioni:', error);
-          return;
-        }
+        const allLessons = await listLessons();
+        const data = allLessons.filter(l => 
+          l.giorno && l.giorno.toLowerCase() === giornoCorrente.toLowerCase()
+        ).sort((a, b) => (a.orarioInizio || '').localeCompare(b.orarioInizio || ''));
 
         setLezioniOggi(data || []);
       } catch (err) {
@@ -150,23 +146,13 @@ function Home() {
         setLoadingNotizie(true)
         console.log('[Home] carico ultime notizie...')
 
-        const { data, error } = await supabase
-          .from('annunci')
-          .select('id, titolo, contenuto, created_at')
-          .eq('published', true)
-          .order('created_at', { ascending: false })
-          .limit(5)
+        const data = await listAnnunci(true); // onlyPublished
 
         if (cancelled) return
 
-        console.log('[Home] risposta annunci', { data, error })
+        console.log('[Home] risposta annunci', { data })
+        setUltimeNotizie(data.slice(0, 5) ?? [])
 
-        if (error) {
-          console.error('Errore caricamento notizie:', error)
-          setUltimeNotizie([])
-        } else {
-          setUltimeNotizie(data ?? [])
-        }
       } catch (err) {
         if (cancelled) return
         console.error('Errore caricamento notizie (catch):', err)
@@ -201,23 +187,12 @@ function Home() {
   const [orariCorsi, setOrariCorsi] = useState([]);
   const [loadingOrari, setLoadingOrari] = useState(true);
 
-  // Carica orari corsi da Supabase
+  // Carica orari corsi da Firebase
   useEffect(() => {
     const loadOrariCorsi = async () => {
       try {
-        // TODO: Assumo che la tabella corsi abbia campi nome, giorno, orario
-        // Se la struttura è diversa, adattare la query
-        const { data, error } = await supabase
-          .from('corsi')
-          .select('nome, giorno, orario')
-          .order('giorno')
-          .order('orario');
-
-        if (error) {
-          console.error('Errore caricamento orari:', error);
-          return;
-        }
-
+        const data = await listCourses();
+        // TODO: ordinamento se necessario
         setOrariCorsi(data || []);
       } catch (err) {
         console.error('Errore caricamento orari:', err);

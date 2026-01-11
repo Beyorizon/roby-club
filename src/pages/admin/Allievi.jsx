@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase.js'
+import { listCourses } from '../../lib/courses.api.js'
+import { getAllUsersForAdmin } from '../../lib/users.api.js'
 import { useAuth } from '../../context/AuthProvider'
 
 export default function Allievi() {
@@ -26,71 +27,81 @@ export default function Allievi() {
     }
   }, [isAdmin, authLoading, navigate])
 
-  // Carica corsi disponibili
+  // Carica lista corsi per filtro
   const loadCorsi = async () => {
     try {
-      const { data, error } = await supabase
-        .from('corsi')
-        .select('id, nome')
-        .order('nome')
-      
-      if (error) {
-        console.error('Errore caricamento corsi:', error)
-        return
-      }
-      
-      setCorsi(data || [])
+      const data = await listCourses()
+      const sorted = data.sort((a, b) => {
+        const nameA = a.nome || a.name || '';
+        const nameB = b.nome || b.name || '';
+        return nameA.localeCompare(nameB);
+      })
+      setCorsi(sorted)
     } catch (err) {
       console.error('Errore caricamento corsi:', err)
     }
   }
 
+  useEffect(() => {
+    loadCorsi()
+  }, [])
+
   // Funzione per caricare gli allievi con paginazione, ricerca e filtro corso
-const loadAllievi = useCallback(async (searchQuery = '', corsoFilter = '', tipoFilter = '', currentPage = 1) => {
+  const loadAllievi = useCallback(async (searchQuery = '', corsoFilter = '', tipoFilter = '', currentPage = 1) => {
     setListLoading(true)
     setError('')
     try {
-      const from = (currentPage - 1) * pageSize
-      const to = from + pageSize - 1
-
-      let query = supabase
-        .from('utenti')
-        .select('id, auth_id, ruolo, nome, cognome, genitore_id', { count: 'exact' })
-        .order('cognome')
-        .order('nome')
-        .range(from, to)
+      // Fetch all users
+      const allUsers = await getAllUsersForAdmin();
+      
+      let filtered = allUsers;
 
       // Filtro per ricerca nome/cognome
       if (searchQuery.trim()) {
-        const q = searchQuery.trim()
-        query = query.or(`nome.ilike.%${q}%,cognome.ilike.%${q}%`)
+        const q = searchQuery.trim().toLowerCase();
+        filtered = filtered.filter(u => 
+          (u.nome && u.nome.toLowerCase().includes(q)) || 
+          (u.cognome && u.cognome.toLowerCase().includes(q))
+        );
       }
 
       // Filtro per corso
       if (corsoFilter) {
-        query = query.or(`corso_1.eq.${corsoFilter},corso_2.eq.${corsoFilter},corso_3.eq.${corsoFilter},corso_4.eq.${corsoFilter},corso_5.eq.${corsoFilter}`)
+        filtered = filtered.filter(u => 
+          u.corso_1 === corsoFilter || 
+          u.corso_2 === corsoFilter || 
+          u.corso_3 === corsoFilter || 
+          u.corso_4 === corsoFilter || 
+          u.corso_5 === corsoFilter
+        );
       }
       
       // Filtro per tipo (ruolo)
       if (tipoFilter) {
-        query = query.eq('ruolo', tipoFilter)
+        filtered = filtered.filter(u => u.ruolo === tipoFilter);
       }
 
-      const { data, error: queryError, count } = await query
+      // Sorting
+      filtered.sort((a, b) => {
+        if (a.cognome === b.cognome) {
+          return (a.nome || '').localeCompare(b.nome || '');
+        }
+        return (a.cognome || '').localeCompare(b.cognome || '');
+      });
 
-      if (queryError) {
-        console.error('[supabase] allievi fetch error:', queryError?.message || queryError?.code || 'unknown')
-        setError(`Errore nel caricamento degli allievi: ${queryError.message}`)
-        setAllievi([])
-        setTotalCount(0)
-      } else {
-        setAllievi(data || [])
-        setTotalCount(count || 0)
-        setError('')
-      }
+      // Pagination
+      const total = filtered.length;
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize;
+      const pagedData = filtered.slice(from, to);
+
+      setAllievi(pagedData)
+      setTotalCount(total)
+      setError('')
+
     } catch (err) {
-      console.error('[allievi] load error:', err?.message || 'unknown')
-      setError('Errore critico durante il caricamento')
+      console.error('[Firestore] allievi fetch error:', err)
+      setError(`Errore nel caricamento degli allievi: ${err.message}`)
       setAllievi([])
       setTotalCount(0)
     } finally {
@@ -257,8 +268,8 @@ const loadAllievi = useCallback(async (searchQuery = '', corsoFilter = '', tipoF
                         onClick={() => handleAllieveClick(allievo)}
                       >
                         <td className="py-4 px-6">
-                          <div className="text-white font-medium">
-                            {allievo.nome}
+                          <div className="flex flex-col">
+                            <span className="text-white font-medium">{allievo.nome}</span>
                           </div>
                         </td>
                         <td className="py-4 px-6">

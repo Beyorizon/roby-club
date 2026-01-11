@@ -1,36 +1,48 @@
-<<<<<<< HEAD
-# React + Vite
+# Roby Club v2
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Gestionale per Roby Club (React + Vite + Firebase).
 
-Currently, two official plugins are available:
+## Requisiti
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Node.js (v18+)
+- Firebase Project
 
-## Expanding the ESLint configuration
+## Installazione
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
-=======
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-While this project uses React, Vite supports many popular JS frameworks. [See all the supported frameworks](https://vitejs.dev/guide/#scaffolding-your-first-vite-project).
-
-## Deploy Your Own
-
-Deploy your own Vite project with Vercel.
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/vercel/examples/tree/main/framework-boilerplates/vite-react&template=vite-react)
-
-_Live Example: https://vite-react-example.vercel.app_
-
-### Deploying From Your Terminal
-
-You can deploy your new Vite project with a single command from your terminal using [Vercel CLI](https://vercel.com/download):
-
-```shell
-$ vercel
+```bash
+npm install
 ```
->>>>>>> 6f709443e896cf6a74089bf7f2a57c40a90c347c
+
+## Sviluppo
+
+```bash
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+```
+
+## Script & Tooling
+
+### Gestione Admin Claims
+
+Imposta i claim di amministratore per un utente (email o UID).
+
+```bash
+# Esempio
+node scripts/set-admin-claim.mjs admin@example.com
+```
+
+Richiede che la variabile d'ambiente `FIREBASE_SERVICE_ACCOUNT` sia impostata con il percorso del file JSON delle credenziali, oppure che il file `serviceAccountKey.json` sia presente nella root (solo per sviluppo locale).
+
+### Pulizia Dati Runtime
+
+Svuota le collezioni `payments` e `logs` (utile per reset periodici o test).
+**Attenzione: I dati verranno cancellati permanentemente.**
+
+```bash
+node scripts/clean-runtime-data.mjs
+```

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthProvider"
-import { supabase } from "../lib/supabase.js"
+import { getUser, createUser } from "../lib/users.api.js"
 
 function AggiungiFiglio() {
   const { user } = useAuth()
@@ -25,11 +25,7 @@ function AggiungiFiglio() {
   useEffect(() => {
     const loadData = async () => {
       // Trova il record del genitore loggato in 'utenti'
-      const { data: g } = await supabase
-        .from("utenti")
-        .select("id")
-        .eq("auth_id", user.id)
-        .single()
+      const g = await getUser(user.id)
       setGenitore(g)
     }
     if (user?.id) loadData()
@@ -63,7 +59,7 @@ function AggiungiFiglio() {
 
     try {
       setSaving(true)
-      const { error } = await supabase.from("utenti").insert({
+      await createUser({
         nome: formData.nome,
         cognome: formData.cognome,
         data_nascita: formData.data_nascita,
@@ -75,8 +71,6 @@ function AggiungiFiglio() {
         genitore_id: genitore?.id || null,
         auth_id: null  // figlio non ha credenziali di login
       })
-
-      if (error) throw error
 
       setMessage("Figlio aggiunto con successo!")
       setTimeout(() => navigate("/dashboard-utente"), 1500)

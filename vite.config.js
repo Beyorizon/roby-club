@@ -2,9 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig(() => {
-  // 👇 Legge la variabile d'ambiente o usa fallback
-  const basePath = process.env.VITE_BASE_PATH || '/'
+export default defineConfig(({ mode }) => {
+  // Configurazione base URL
+  const basePath = mode === 'production' ? '/robyclub/' : '/'
 
   return {
     base: basePath,   // 👈 fondamentale per gli asset

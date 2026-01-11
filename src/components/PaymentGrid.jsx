@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase.js';
+import { listPayments, recordPayment, updatePayment } from '../lib/payments.api.js';
 
 const PaymentGrid = ({ 
   allievoId, 
@@ -22,14 +22,14 @@ const PaymentGrid = ({
     const loadPayments = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from('pagamenti')
-          .select('*')
-          .eq('allievo_id', allievoId)
-          .eq('anno', year)
-          .eq('categoria', 'mensile');
+        // Filtriamo client-side se necessario, o aggiungiamo filtri in listPayments
+        // listPayments già accetta filtri
+        const data = await listPayments({ 
+          allievoId, 
+          anno: year,
+          categoria: 'mensile'
+        });
 
-        if (error) throw error;
         setPayments(data || []);
       } catch (err) {
         console.error('Errore caricamento pagamenti:', err);
@@ -110,19 +110,31 @@ const PaymentGrid = ({
         data_pagamento: newStato === 'pagato' ? new Date().toISOString() : null
       };
 
-      const { data, error } = await supabase
-        .from('pagamenti')
-        .upsert(paymentData, {
-          onConflict: 'allievo_id,mese,anno,categoria'
-        })
-        .select();
-
-      if (error) throw error;
+      // Se esiste già, aggiorniamo l'ID, altrimenti ne creiamo uno nuovo (gestito da recordPayment)
+      // recordPayment in payments.api.js usa addDoc.
+      // Dobbiamo gestire update vs insert.
+      // Se esiste, usiamo updatePayment (da implementare o importare)
+      // O modifichiamo recordPayment per gestire l'aggiornamento.
+      // Vediamo payments.api.js
+      
+      // In payments.api.js ho solo listPayments e recordPayment (addDoc).
+      // Devo aggiungere updatePayment.
+      // Ma qui usavamo upsert con Supabase.
+      // Con Firestore non c'è upsert diretto su campi arbitrari, bisogna conoscere l'ID.
+      // Se existingPayment esiste, ha un ID.
+      
+      let result;
+      if (existingPayment?.id) {
+         await updatePayment(existingPayment.id, paymentData);
+         result = { ...existingPayment, ...paymentData };
+      } else {
+         result = await recordPayment(paymentData);
+      }
 
       // Optimistic update
       setPayments(prev => {
         const filtered = prev.filter(p => (p.mese || '').toLowerCase() !== monthName.toLowerCase() || String(p.anno) !== String(year) || p.categoria !== 'mensile');
-        return [...filtered, data[0]];
+        return [...filtered, result];
       });
 
       if (onPaymentUpdate) {

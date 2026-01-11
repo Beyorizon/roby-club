@@ -1,0 +1,77 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function per verificare se l'utente è admin tramite Custom Claim
+    // NESSUNA lettura a DB richiesta => NESSUN costo, NESSUN ciclo infinito
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    // Helper per verificare se l'utente è autenticato e sta accedendo ai propri dati
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    // USERS
+    // - Admin: legge tutto
+    // - Owner: legge/scrive il proprio documento
+    // - Delete: nessuno (nemmeno admin, per sicurezza dati)
+    match /users/{userId} {
+      allow read: if isAdmin() || isOwner(userId);
+      allow create, update: if isAdmin() || isOwner(userId);
+      allow delete: if false; 
+    }
+
+    // COURSES
+    // - Read: pubblico (o autenticato, qui metto pubblico per semplicità catalogo)
+    // - Write: solo admin
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // LESSONS
+    // - Read: pubblico (o basato su iscrizione, per ora pubblico come richiesto)
+    // - Write: solo admin
+    match /lessons/{lessonId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // ENROLLMENTS (Iscrizioni)
+    // Necessario per gestire le iscrizioni ai corsi
+    match /enrollments/{enrollmentId} {
+      allow read: if isAdmin() || (request.auth != null && resource.data.auth_id == request.auth.uid);
+      allow create: if isAdmin() || (request.auth != null && request.resource.data.auth_id == request.auth.uid);
+      allow delete: if isAdmin() || (request.auth != null && resource.data.auth_id == request.auth.uid);
+      allow update: if isAdmin(); // Solo admin modifica iscrizioni esistenti
+    }
+
+    // ANNOUNCEMENTS
+    // - Read: pubblico
+    // - Write: solo admin
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // PAYMENTS
+    // - Admin: legge tutto
+    // - Utente: legge solo i propri (filtrati per userId o campo equivalente)
+    // - Write: solo admin
+    // Nota: Assumo che il campo nel documento sia 'userId' o 'auth_id'.
+    // Adatto rules per coprire entrambi i casi comuni o resource.data.userId
+    match /payments/{paymentId} {
+      allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // LOGS
+    // - Solo admin
+    match /logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

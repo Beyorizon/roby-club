@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthProvider'
 
 function AdminGuard({ children }) {
-  const { session, loading, isAdmin } = useAuth()
+  const { user, loading, isAdmin } = useAuth()
 
   if (loading) {
     return (
@@ -13,11 +13,13 @@ function AdminGuard({ children }) {
     )
   }
 
-  if (!session) {
+  if (!user) {
+    console.log('[AdminGuard] No user, redirecting to /login');
     return <Navigate to="/login" replace />
   }
 
   if (!isAdmin) {
+    console.log('[AdminGuard] User not admin, redirecting to /login', user.uid);
     return <Navigate to="/login" replace />
   }
 

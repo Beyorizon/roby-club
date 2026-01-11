@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthProvider'
-import { supabase } from '../../lib/supabase.js'
+import { listCourses } from '../../lib/courses.api.js'
+import { getUser, updateUser, listChildren, getUserForAdminById } from '../../lib/users.api.js'
+import { listPaymentsForUser, createPayment, updatePayment, upsertMonthlyPayment } from '../../lib/payments.api.js'
 import PaymentGrid from '../../components/PaymentGrid'
 
 // Costante per il costo mensile
@@ -125,20 +127,12 @@ function AllievoDettaglio() {
     return courses;
   };
 
-  // Carica i corsi da Supabase
+  // Carica i corsi da Firestore
   const loadCorsi = async () => {
     try {
-      const { data, error } = await supabase
-        .from('corsi')
-        .select('*')
-        .order('nome')
-      
-      if (error) {
-        console.error('Errore caricamento corsi:', error)
-        return
-      }
-      
-      setCorsi(data || [])
+      const courses = await listCourses()
+      const sortedCourses = courses.sort((a, b) => a.nome.localeCompare(b.nome))
+      setCorsi(sortedCourses)
     } catch (err) {
       console.error('Errore caricamento corsi:', err)
     }
@@ -150,16 +144,7 @@ function AllievoDettaglio() {
     
     try {
       setLoadingPagamenti(true)
-      const { data, error } = await supabase
-        .from('pagamenti')
-        .select('*')
-        .eq('allievo_id', profile.id)
-        // RIMOSSO: .eq('tipo', 'mensile') - questo filtro non esiste nella Dashboard
-      
-      if (error) {
-        console.error('Errore caricamento pagamenti:', error)
-        return
-      }
+      const data = await listPaymentsForUser(profile.id)
       
       // Assegna anno di default ai pagamenti che non ce l'hanno
       const pagamentiConAnno = (data || []).map(p => ({
@@ -167,7 +152,22 @@ function AllievoDettaglio() {
         anno: p.anno || 2025 // Anno di default
       }))
       
-      setPagamenti(pagamentiConAnno)
+      // Filter only monthly payments if needed? 
+      // The original code commented out `.eq('tipo', 'mensile')` but we might want to keep everything in state 
+      // and filter when displaying? 
+      // The state is `setPagamenti` which seems to be used for the grid.
+      // Let's keep all payments in `pagamenti` state or just mensile?
+      // Looking at usage: `pagamenti.find(p => p.mese === mese ...)` suggests it expects monthly payments in this array.
+      // But `loadPagamentiExtra` sets `setIscrizione`, `setSaggio`, `setVestiti` separately.
+      // So `pagamenti` state likely is for monthly grid.
+      // Let's filter for category 'mensile' if possible, or just assume 'mensile' is default if not specified?
+      // In `handleMeseClick` it upserts with `categoria: 'mensile'`.
+      // So we should probably filter `pagamenti` state to only include 'mensile' or handle it.
+      // The original code did `select('*')` without filter (commented out).
+      // Let's just use all data for now, but `handleMeseClick` logic relies on finding payment by mese/anno.
+      
+      const mensili = pagamentiConAnno.filter(p => p.categoria === 'mensile');
+      setPagamenti(mensili)
     } catch (err) {
       console.error('Errore caricamento pagamenti:', err)
     } finally {
@@ -176,53 +176,28 @@ function AllievoDettaglio() {
   }
 
   // Carica pagamenti extra (iscrizione, saggio e vestiti)
-const loadPagamentiExtra = async () => {
-  if (!profile?.id) return
+  const loadPagamentiExtra = async () => {
+    if (!profile?.id) return
 
-  try {
-    // 🔹 ISCRIZIONE
-    const { data: iscrizioneData, error: iscrizioneError } = await supabase
-      .from('pagamenti')
-      .select('*')
-      .eq('allievo_id', profile.id)
-      .eq('categoria', 'iscrizione')
-      .maybeSingle()
+    try {
+      const allPayments = await listPaymentsForUser(profile.id);
 
-    if (iscrizioneError) {
-      console.error('Errore caricamento iscrizione:', iscrizioneError)
-    } else {
+      // 🔹 ISCRIZIONE
+      const iscrizioneData = allPayments.find(p => p.categoria === 'iscrizione');
       setIscrizione(iscrizioneData || null)
-    }
 
-    // 🔹 SAGGIO
-    const { data: saggioData, error: saggioError } = await supabase
-      .from('pagamenti')
-      .select('*')
-      .eq('allievo_id', profile.id)
-      .eq('categoria', 'saggio')
-
-    if (saggioError) {
-      console.error('Errore caricamento saggio:', saggioError)
-    } else {
+      // 🔹 SAGGIO
+      const saggioData = allPayments.filter(p => p.categoria === 'saggio');
       setSaggio(saggioData || [])
-    }
 
-    // 🔹 VESTITI
-    const { data: vestitiData, error: vestitiError } = await supabase
-      .from('pagamenti')
-      .select('*')
-      .eq('allievo_id', profile.id)
-      .eq('categoria', 'vestiti')
-
-    if (vestitiError) {
-      console.error('Errore caricamento vestiti:', vestitiError)
-    } else {
+      // 🔹 VESTITI
+      const vestitiData = allPayments.filter(p => p.categoria === 'vestiti');
       setVestiti(vestitiData || [])
+
+    } catch (err) {
+      console.error('Errore caricamento pagamenti extra:', err)
     }
-  } catch (err) {
-    console.error('Errore caricamento pagamenti extra:', err)
   }
-}
 
 
   // Gestisce il click sui bottoni dei mesi - CICLO A TRE STATI
@@ -248,29 +223,26 @@ const loadPagamentiExtra = async () => {
       }
       
       // Upsert unico per gestire sia INSERT che UPDATE
-      const { error } = await supabase
-        .from("pagamenti")
-        .upsert({
-          allievo_id: id,
-          mese: mese,
-          anno: selectedAnno,
-          categoria: 'mensile',
-          stato: nuovoStato,
-          importo: nuovoImporto
-        }, { onConflict: ['allievo_id', 'mese', 'anno'] })
-      
-      if (error) throw error
+      const result = await upsertMonthlyPayment({
+        allievo_id: id,
+        mese: mese,
+        anno: selectedAnno,
+        categoria: 'mensile',
+        stato: nuovoStato,
+        importo: nuovoImporto
+      })
       
       // Aggiorna stato locale
       setPagamenti(prev => {
         const index = prev.findIndex(p => p.mese === mese && (p.anno === selectedAnno || p.anno === selectedAnno + 1))
         const nuovoPagamento = { 
-          id: pagamento?.id, 
+          id: result.id, 
           allievo_id: id, 
           mese, 
           anno: selectedAnno, // AGGIUNTO CAMPO ANNO
           stato: nuovoStato, 
-          importo: nuovoImporto 
+          importo: nuovoImporto,
+          categoria: 'mensile'
         }
         
         if (index >= 0) {
@@ -362,12 +334,7 @@ if (pagamento.stato === 'non_pagato') {
   // Gestisce il cambio stato iscrizione
   const handleIscrizioneStatoChange = async (iscrizioneId, nuovoStato) => {
     try {
-      const { error } = await supabase
-        .from('pagamenti')
-        .update({ stato: nuovoStato })
-        .eq('id', iscrizioneId)
-      
-      if (error) throw error
+      await updatePayment(iscrizioneId, { stato: nuovoStato })
       
       // Aggiorna stato locale
       setIscrizione(prev => ({
@@ -384,12 +351,7 @@ if (pagamento.stato === 'non_pagato') {
   // Gestisce il cambio stato tranche saggio
   const handleTrancheStatoChange = async (trancheId, nuovoStato) => {
     try {
-      const { error } = await supabase
-        .from('pagamenti')
-        .update({ stato: nuovoStato })
-        .eq('id', trancheId)
-      
-      if (error) throw error
+      await updatePayment(trancheId, { stato: nuovoStato })
       
       // Ricarica pagamenti
       loadPagamentiExtra()
@@ -401,20 +363,13 @@ if (pagamento.stato === 'non_pagato') {
   // Gestisce l'aggiunta di un nuovo vestito
   const handleAggiungiVestito = async () => {
     try {
-      const { error } = await supabase
-        .from('pagamenti')
-        .insert({
-          categoria: 'vestiti',
-          allievo_id: profile.id,
-          importo: parseFloat(nuovoVestito.importo),
-          note: nuovoVestito.descrizione,
-          stato: nuovoVestito.stato
-        })
-      
-      if (error) {
-        setMessage({ type: 'error', text: `Errore nell'aggiunta del vestito: ${error.message}` })
-        throw error
-      }
+      await createPayment({
+        categoria: 'vestiti',
+        allievo_id: profile.id,
+        importo: parseFloat(nuovoVestito.importo),
+        note: nuovoVestito.descrizione,
+        stato: nuovoVestito.stato
+      })
       
       setMessage({ type: 'success', text: 'Vestito aggiunto con successo!' })
       
@@ -438,12 +393,7 @@ if (pagamento.stato === 'non_pagato') {
   // Gestisce il cambio stato vestito
   const handleVestitoStatoChange = async (vestitoId, nuovoStato) => {
     try {
-      const { error } = await supabase
-        .from('pagamenti')
-        .update({ stato: nuovoStato })
-        .eq('id', vestitoId)
-      
-      if (error) throw error
+      await updatePayment(vestitoId, { stato: nuovoStato })
       
       // Ricarica vestiti
       loadPagamentiExtra()
@@ -462,12 +412,7 @@ if (pagamento.stato === 'non_pagato') {
         updateData.data_pagamento = valore || null
       }
       
-      const { error } = await supabase
-        .from('pagamenti')
-        .update(updateData)
-        .eq('id', iscrizioneId)
-      
-      if (error) throw error
+      await updatePayment(iscrizioneId, updateData)
       
       // Aggiorna stato locale
       setIscrizione(prev => ({
@@ -489,12 +434,7 @@ if (pagamento.stato === 'non_pagato') {
         updateData.data_pagamento = valore || null
       }
       
-      const { error } = await supabase
-        .from('pagamenti')
-        .update(updateData)
-        .eq('id', trancheId)
-      
-      if (error) throw error
+      await updatePayment(trancheId, updateData)
       
       // Ricarica saggio
       loadPagamentiExtra()
@@ -513,12 +453,7 @@ if (pagamento.stato === 'non_pagato') {
         updateData.note = valore
       }
       
-      const { error } = await supabase
-        .from('pagamenti')
-        .update(updateData)
-        .eq('id', vestitoId)
-      
-      if (error) throw error
+      await updatePayment(vestitoId, updateData)
       
       // Ricarica vestiti
       loadPagamentiExtra()
@@ -538,32 +473,19 @@ if (pagamento.stato === 'non_pagato') {
     })
     
     try {
-      const { data, error } = await supabase
-        .from('pagamenti')
-        .insert({
-          categoria: 'iscrizione',
-          allievo_id: profile.id,
-          data_pagamento: nuovaIscrizione.data_pagamento,
-          importo: parseFloat(nuovaIscrizione.importo),
-          stato: nuovaIscrizione.stato
-        })
-        .select()
+      const result = await createPayment({
+        categoria: 'iscrizione',
+        allievo_id: profile.id,
+        data_pagamento: nuovaIscrizione.data_pagamento,
+        importo: parseFloat(nuovaIscrizione.importo),
+        stato: nuovaIscrizione.stato
+      })
       
-      console.log('[DEBUG] Risultato inserimento:', { data, error })
-      
-      if (error) {
-        console.error('[DEBUG] Errore inserimento:', error)
-        setMessage({ type: 'error', text: `Errore nell'aggiunta dell'iscrizione: ${error.message}` })
-        throw error
-      }
-      
-      console.log('[DEBUG] Iscrizione aggiunta con successo:', data)
+      console.log('[DEBUG] Iscrizione aggiunta con successo:', result)
       setMessage({ type: 'success', text: 'Iscrizione aggiunta con successo!' })
       
       // Aggiorna immediatamente lo stato locale
-      if (data && data[0]) {
-        setIscrizione(data[0])
-      }
+      setIscrizione(result)
       
       // Nascondi il messaggio dopo 3 secondi
       setTimeout(() => {
@@ -583,29 +505,19 @@ if (pagamento.stato === 'non_pagato') {
   const handleAggiungiTranche = async (trancheNumero) => {
     try {
       const trancheData = nuoveTranche[trancheNumero]
-      const { data, error } = await supabase
-        .from('pagamenti')
-        .insert({
-          categoria: 'saggio',
-          sottocategoria: `tranche_${trancheNumero}`,
-          allievo_id: profile.id,
-          data_pagamento: trancheData.data_pagamento,
-          importo: parseFloat(trancheData.importo),
-          stato: trancheData.stato
-        })
-        .select()
-      
-      if (error) {
-        setMessage({ type: 'error', text: `Errore nell'aggiunta della tranche ${trancheNumero}: ${error.message}` })
-        throw error
-      }
+      const result = await createPayment({
+        categoria: 'saggio',
+        sottocategoria: `tranche_${trancheNumero}`,
+        allievo_id: profile.id,
+        data_pagamento: trancheData.data_pagamento,
+        importo: parseFloat(trancheData.importo),
+        stato: trancheData.stato
+      })
       
       setMessage({ type: 'success', text: `Tranche ${trancheNumero} aggiunta con successo!` })
       
       // Aggiorna immediatamente lo stato locale
-      if (data && data.length > 0) {
-        setSaggio(prev => [...prev, ...data])
-      }
+      setSaggio(prev => [...prev, result])
       
       // Nascondi il messaggio dopo 3 secondi
       setTimeout(() => {
@@ -637,83 +549,54 @@ if (pagamento.stato === 'non_pagato') {
           return
         }
 
-        console.log('[DEBUG] Caricamento dati allievo con id:', id)
+        if (import.meta.env.DEV) console.log('[DEBUG] Caricamento dati allievo con id:', id)
 
-        const { data: profileData, error } = await supabase
-          .from('utenti')
-          .select(`
-            id, auth_id, ruolo, email,
-            nome, cognome, data_iscrizione, data_nascita, cellulare,
-            nome_genitore1, cellulare_genitore1,
-            nome_genitore2, cellulare_genitore2,
-            taglia_tshirt, taglia_pantalone, numero_scarpe,
-            corso_1, corso_2, corso_3, corso_4, corso_5,
-            prezzo_corso1, prezzo_corso2, prezzo_corso3, prezzo_corso4, prezzo_corso5
-          `)
-          .eq('id', id)
-          .single()
+        const profileData = await getUserForAdminById(id)
 
-        if (error) {
-          console.error('[DEBUG] Errore fetch allievo:', error?.message || error?.code || 'unknown')
-          if (error.code === 'PGRST301' || error.code === 'PGRST116' ||
-              error.message?.includes('403') || error.message?.includes('406')) {
-            if (!isMounted) return
-            setAuthError(true)
-            setMessage({ type: 'error', text: 'Non autorizzato / allievo non trovato' })
-          } else {
-            if (!isMounted) return
-            setMessage({ type: 'error', text: 'Errore nel caricamento del profilo allievo' })
-          }
+        if (!isAdmin || !profileData) {
+          if (!isMounted) return
+          setAuthError(true)
           return
         }
 
         if (!isMounted) return
-        if (profileData) {
-          console.log('[DEBUG] Allievo caricato:', profileData)
-          setProfile(profileData)
-          setFormData({
-            nome: profileData.nome || '',
-            cognome: profileData.cognome || '',
-            data_nascita: profileData.data_nascita ? fromISODate(profileData.data_nascita) : '',
-            cellulare: profileData.cellulare || '',
-            nome_genitore1: profileData.nome_genitore1 || '',
-            cellulare_genitore1: profileData.cellulare_genitore1 || '',
-            nome_genitore2: profileData.nome_genitore2 || '',
-            cellulare_genitore2: profileData.cellulare_genitore2 || '',
-            taglia_tshirt: profileData.taglia_tshirt || '',
-            taglia_pantalone: profileData.taglia_pantalone || '',
-            numero_scarpe: profileData.numero_scarpe || '',
-            corso_1: profileData.corso_1 || '',
-            corso_2: profileData.corso_2 || '',
-            corso_3: profileData.corso_3 || '',
-            corso_4: profileData.corso_4 || '',
-            corso_5: profileData.corso_5 || '',
-            prezzo_corso1: profileData.prezzo_corso1 || '',
-            prezzo_corso2: profileData.prezzo_corso2 || '',
-            prezzo_corso3: profileData.prezzo_corso3 || '',
-            prezzo_corso4: profileData.prezzo_corso4 || '',
-            prezzo_corso5: profileData.prezzo_corso5 || ''
-          })
-          // Carica i figli se l'utente è un genitore
-          if (profileData?.ruolo === 'genitore') {
-            const loadFigli = async () => {
-              try {
-                const { data: figliData, error: figliError } = await supabase
-                  .from('utenti')
-                  .select('id, nome, cognome')
-                  .eq('genitore_id', profileData.id)
-                
-                if (figliError) {
-                  console.error('Errore caricamento figli:', figliError)
-                } else {
-                  setFigli(figliData || [])
-                }
-              } catch (err) {
-                console.error('Errore caricamento figli:', err)
-              }
+        
+        if (import.meta.env.DEV) console.log('[DEBUG] Allievo caricato:', profileData)
+        setProfile(profileData)
+        setFormData({
+          nome: profileData.nome || '',
+          cognome: profileData.cognome || '',
+          data_nascita: profileData.data_nascita ? fromISODate(profileData.data_nascita) : '',
+          cellulare: profileData.cellulare || '',
+          nome_genitore1: profileData.nome_genitore1 || '',
+          cellulare_genitore1: profileData.cellulare_genitore1 || '',
+          nome_genitore2: profileData.nome_genitore2 || '',
+          cellulare_genitore2: profileData.cellulare_genitore2 || '',
+          taglia_tshirt: profileData.taglia_tshirt || '',
+          taglia_pantalone: profileData.taglia_pantalone || '',
+          numero_scarpe: profileData.numero_scarpe || '',
+          corso_1: profileData.corso_1 || '',
+          corso_2: profileData.corso_2 || '',
+          corso_3: profileData.corso_3 || '',
+          corso_4: profileData.corso_4 || '',
+          corso_5: profileData.corso_5 || '',
+          prezzo_corso1: profileData.prezzo_corso1 || '',
+          prezzo_corso2: profileData.prezzo_corso2 || '',
+          prezzo_corso3: profileData.prezzo_corso3 || '',
+          prezzo_corso4: profileData.prezzo_corso4 || '',
+          prezzo_corso5: profileData.prezzo_corso5 || ''
+        })
+        // Carica i figli se l'utente è un genitore
+        if (profileData?.ruolo === 'genitore') {
+          const loadFigli = async () => {
+            try {
+              const figliData = await listChildren(profileData.id)
+              setFigli(figliData || [])
+            } catch (err) {
+              console.error('Errore caricamento figli:', err)
             }
-            loadFigli()
           }
+          loadFigli()
         }
       } catch (err) {
         console.error('[DEBUG] Errore caricamento:', err?.message || 'unknown')
@@ -807,13 +690,10 @@ if (pagamento.stato === 'non_pagato') {
 };
 
       
-      // Aggiorna la tabella utenti su Supabase
-      const { error } = await supabase
-        .from('utenti')
-        .update(updateData)
-        .eq('id', id)
-      
-      if (error) {
+      // Aggiorna la tabella utenti su Firebase
+      try {
+        await updateUser(id, updateData)
+      } catch (error) {
         console.error('Errore aggiornamento:', error)
         alert('Errore durante il salvataggio.')
         return
@@ -823,11 +703,7 @@ if (pagamento.stato === 'non_pagato') {
       alert('Dati salvati con successo!')
       
       // Ricarica i dati aggiornati
-      const { data: updatedProfile } = await supabase
-        .from('utenti')
-        .select('*')
-        .eq('id', id)
-        .single()
+      const updatedProfile = await getUser(id)
       
       if (updatedProfile) {
         setProfile(updatedProfile)
@@ -871,7 +747,7 @@ if (pagamento.stato === 'non_pagato') {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">
+            <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
               {profile?.nome} {profile?.cognome}
             </h1>
             <Link to="/admin/allievi" className="text-indigo-400 hover:text-indigo-300">

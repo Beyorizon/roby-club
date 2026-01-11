@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import supabase from '../../lib/supabase.js'
+import { listAnnunci, createAnnuncio, updateAnnuncio, deleteAnnuncio as apiDeleteAnnuncio } from '../../lib/annunci.api.js'
 import { timeAgo } from '../../lib/timeAgo.js'
 
 export default function NotizieAdmin() {
@@ -13,15 +13,11 @@ export default function NotizieAdmin() {
   // Carica annunci
   const loadAnnunci = async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('annunci')
-      .select('*')
-      .order('created_at', { ascending: false })
-    
-    if (error) {
-      showMessage('error', 'Errore nel caricamento annunci: ' + error.message)
-    } else {
+    try {
+      const data = await listAnnunci()
       setAnnunci(data || [])
+    } catch (error) {
+      showMessage('error', 'Errore nel caricamento annunci: ' + error.message)
     }
     setLoading(false)
   }
@@ -43,12 +39,7 @@ export default function NotizieAdmin() {
     try {
       if (editingAnnuncio) {
         // Update
-        const { error } = await supabase
-          .from('annunci')
-          .update(formAnnuncio)
-          .eq('id', editingAnnuncio.id)
-        
-        if (error) throw error
+        await updateAnnuncio(editingAnnuncio.id, formAnnuncio)
         
         // Optimistic update
         setAnnunci(prev => prev.map(a => 
@@ -59,15 +50,10 @@ export default function NotizieAdmin() {
         setEditingAnnuncio(null)
       } else {
         // Create
-        const { data, error } = await supabase
-          .from('annunci')
-          .insert([formAnnuncio])
-          .select()
-        
-        if (error) throw error
+        const newAnnuncio = await createAnnuncio(formAnnuncio)
         
         // Optimistic update
-        setAnnunci(prev => [data[0], ...prev])
+        setAnnunci(prev => [newAnnuncio, ...prev])
         showMessage('success', 'Annuncio creato con successo')
       }
       
@@ -83,12 +69,7 @@ export default function NotizieAdmin() {
     const newPublished = !annuncio.published
     
     try {
-      const { error } = await supabase
-        .from('annunci')
-        .update({ published: newPublished })
-        .eq('id', annuncio.id)
-      
-      if (error) throw error
+      await updateAnnuncio(annuncio.id, { published: newPublished })
       
       // Optimistic update
       setAnnunci(prev => prev.map(a => 
@@ -105,12 +86,7 @@ export default function NotizieAdmin() {
     if (!confirm('Sei sicuro di voler eliminare questo annuncio?')) return
     
     try {
-      const { error } = await supabase
-        .from('annunci')
-        .delete()
-        .eq('id', id)
-      
-      if (error) throw error
+      await apiDeleteAnnuncio(id)
       
       // Optimistic update
       setAnnunci(prev => prev.filter(a => a.id !== id))

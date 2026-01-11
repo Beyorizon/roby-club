@@ -1,0 +1,127 @@
+# 📘 Roby Club - Analisi Tecnica e Documentazione per Migrazione WordPress
+
+Questa documentazione analizza l'attuale architettura React + Supabase per guidare la ricostruzione su WordPress.
+
+## 1. Struttura Generale e Routing
+
+L'app è strutturata con **React Router**. Ecco la mappa completa delle pagine da ricreare.
+
+| URL Path | File Sorgente | Ruolo | Descrizione Funzionale |
+| :--- | :--- | :--- | :--- |
+| `/` | `AuthRedirect.jsx` | - | Reindirizza a `/login` o `/dashboard-utente` in base alla sessione. |
+| `/login` | `Login.jsx` | Pubblico | Form di accesso (email/password). |
+| `/signup` | `Signup.jsx` | Pubblico | Pagina di scelta: "Sono Genitore" o "Sono Allievo". |
+| `/signup-genitore` | `SignupGenitore.jsx` | Pubblico | Registrazione account ruolo "genitore". |
+| `/signup-allievo` | `SignupAllievo.jsx` | Pubblico | Registrazione account ruolo "allievo" (solo maggiorenni). |
+| `/dashboard-utente` | `DashboardUtente.jsx` | User | **Hub Centrale Utente**: Profilo, Pagamenti personali, Lista Figli. |
+| `/aggiungi-figlio` | `AggiungiFiglio.jsx` | Genitore | Form per registrare un figlio collegato al genitore (sub-account). |
+| `/figlio/:id` | `DashboardFiglio.jsx` | Genitore | Visualizzazione/Modifica dati e corsi di un figlio specifico. |
+| `/home` | `Home.jsx` | User | Homepage con carosello YouTube (video saggi) e link rapidi. |
+| `/notizie` | `Notizie.jsx` | User | Lista comunicazioni (fetch da tabella `annunci`). |
+| `/orari` | `Orari.jsx` | Pubblico | Griglia oraria settimanale delle lezioni. |
+| `/admin/allievi` | `admin/Allievi.jsx` | Admin | Lista paginata di tutti gli iscritti con filtri (nome, corso). |
+| `/admin/allievi/:id` | `admin/AllievoDettaglio.jsx` | Admin | **Gestionale**: Anagrafica completa, gestione pagamenti, iscrizione. |
+| `/admin/notizie` | `admin/NotizieAdmin.jsx` | Admin | CMS per creare/modificare avvisi. |
+
+---
+
+## 2. Funzionalità Principali
+
+### 🟢 Lato Utente (Frontend)
+1.  **Dashboard Unificata (`DashboardUtente`)**:
+    *   Carica i dati utente dalla tabella `utenti` usando l'ID di autenticazione.
+    *   Mostra i pagamenti effettuati (`pagamenti` where `allievo_id = me`).
+    *   **Se Genitore:** Esegue una query extra per trovare utenti dove `genitore_id = mio_id` e li elenca come card cliccabili.
+2.  **Gestione Figli**:
+    *   I genitori possono aggiungere figli. Questi vengono salvati nella tabella `utenti` ma **senza credenziali di login** (`auth_id` è null).
+    *   Il genitore può vedere/modificare i dati del figlio (taglie, note) ma non i pagamenti sensibili (logica gestita solo lato admin nel codice attuale, anche se i dati esistono).
+
+### 🔴 Lato Admin (Backend)
+1.  **Gestione Allievi**:
+    *   Visualizzazione tabellare con **Paginazione Server-side** (range 0-20, 20-40...).
+    *   **Filtri Avanzati:** Cerca testo in nome/cognome E controlla se l'utente è iscritto a un corso specifico (cercando nelle colonne `corso_1`...`corso_5`).
+2.  **Scheda Dettaglio Allievo (Complessa)**:
+    *   **Slot Corsi:** L'utente ha 5 slot fissi (`corso_1`...`corso_5`) per i corsi a cui è iscritto, ognuno con un prezzo personalizzabile (`prezzo_corso1`...).
+    *   **Griglia Pagamenti:** Una matrice che incrocia Mesi e Corsi per registrare i pagamenti mensili.
+    *   **Extra:** Gestione quote una tantum: "Iscrizione Annuale", "Saggio", "Vestiti".
+
+---
+
+## 3. Autenticazione e Ruoli
+
+L'app usa **Supabase Auth** ma la gestione ruoli è ibrida:
+
+1.  **Autenticazione:** Email/Password standard.
+2.  **Ruolo Utente:** Definito nella colonna `ruolo` della tabella `utenti` (`genitore` o `allievo`).
+3.  **Ruolo Admin:** **Hardcoded**. L'app considera Admin **solo** l'utente con email:
+    `grafica.valeriobottiglieri@gmail.com`
+    *   *Nota per migrazione:* In WordPress questo deve diventare il ruolo `Administrator` o un ruolo custom `Gestore`.
+
+---
+
+## 4. Struttura Database (Schema Supabase)
+
+Ecco lo schema dati da ricostruire (es. via CPT + ACF in WordPress).
+
+### 👤 Tabella: `utenti`
+*Contiene sia chi fa login sia i figli.*
+*   `id` (UUID) - Primary Key
+*   `auth_id` (UUID) - Link all'utente Auth (NULL per i figli)
+*   `genitore_id` (UUID) - Link al genitore (Self-reference)
+*   `ruolo` (string) - 'genitore', 'allievo', 'admin'
+*   `nome`, `cognome`, `email`, `cellulare`, `data_nascita`, `codice_fiscale`
+*   `taglia_tshirt`, `taglia_pantalone`, `numero_scarpe` (Dati per costumi)
+*   `corso_1`, `corso_2`... `corso_5` (FK -> `corsi.id`) - Slot corsi
+*   `prezzo_corso1`... `prezzo_corso5` (Decimal) - Prezzi pattuiti
+
+### 💰 Tabella: `pagamenti`
+*Registro transazioni.*
+*   `id` (PK)
+*   `allievo_id` (FK -> `utenti.id`)
+*   `tipo` (string) - 'mensile', 'iscrizione', 'saggio', 'vestiti'
+*   `mese` (string), `anno` (int)
+*   `importo` (decimal)
+*   `data_pagamento` (date)
+*   `stato` (string) - 'pagato' (di default nel codice attuale)
+
+### 📚 Tabella: `corsi`
+*   `id` (PK)
+*   `nome` (string) - es. "Hip Hop", "Danza Classica"
+
+### 📢 Tabella: `annunci`
+*   `id`, `titolo`, `contenuto`, `published`, `created_at`
+
+### 📅 Tabella: `lezioni` (Usata in `/orari`)
+*   `id`, `giorno` (es. "Lunedì"), `orario_inizio`, `orario_fine`, `nome_corso`
+
+---
+
+## 5. Strategia di Migrazione a WordPress
+
+Per replicare questa app su WordPress, ecco l'approccio consigliato:
+
+### A. Gestione Utenti (La sfida principale)
+L'app React distingue tra "Utenti Login" e "Figli".
+*   **In WordPress:**
+    *   **Genitori/Allievi Adulti:** Usare gli **Utenti WordPress** standard.
+    *   **Figli (Minori):** Consiglio di creare un **Custom Post Type (CPT) "Allievo"**.
+    *   **Collegamento:** Il CPT "Allievo" avrà un campo ACF `genitore_user_id` che punta all'ID dell'utente WP del genitore.
+    *   *Vantaggio:* I genitori possono avere N figli senza dover creare N account email finti.
+
+### B. Gestione Dati (ACF / Pods)
+*   **Corsi:** Creare un CPT "Corso" o una Tassonomia.
+*   **Iscrizioni:** Invece dei 5 slot fissi (`corso_1`...`corso_5`), usare un campo **Relazione (Relationship)** di ACF sul profilo utente/allievo. È più flessibile e scalabile.
+*   **Pagamenti:**
+    *   *Opzione Semplice:* CPT "Pagamento" visibile solo all'admin e all'utente collegato.
+    *   *Opzione Pro:* Usare **WooCommerce** se si vuole permettere il pagamento online in futuro, creando "Ordini" manuali per i pagamenti in contanti.
+
+### C. Frontend
+*   Le pagine pubbliche (Home, Orari, Notizie) sono pagine WP standard.
+*   La **Dashboard Utente** può essere una pagina con uno Shortcode complesso che:
+    1.  Recupera l'utente corrente `wp_get_current_user()`.
+    2.  Mostra i campi profilo (ACF).
+    3.  Esegue `get_posts(post_type='allievo', meta_key='genitore_id'...)` per mostrare i figli.
+
+### D. Punti Critici & Custom Logic
+*   **Logica Admin:** La pagina "Dettaglio Allievo" di React è molto interattiva (calcoli live, griglia pagamenti). In WP, questo richiede di sviluppare un plugin custom o una pagina admin in React integrata nel backend di WP, altrimenti l'esperienza di gestione sarà molto più lenta (ricaricamenti pagina).
+*   **Video YouTube:** Attualmente sono hardcoded in `Home.jsx`. In WP vanno spostati in un CPT "Video Saggio" per renderli gestibili dall'admin.

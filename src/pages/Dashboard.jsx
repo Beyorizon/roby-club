@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthProvider'
-import { supabase } from '../lib/supabase.js'
+import { getUser, updateUser } from '../lib/users.api.js'
+import { listCourses } from '../lib/courses.api.js'
+import { listPayments } from '../lib/payments.api.js'
 
 // Array dei mesi accademici (da AllievoDettaglio.jsx)
 const MESI_ACCADEMICO = [
@@ -169,17 +171,11 @@ function Dashboard() {
   // Carica corsi disponibili
   const loadCorsi = async () => {
     try {
-      const { data: corsiData, error } = await supabase
-        .from('corsi')
-        .select('id, nome')
-        .order('nome')
+      const corsiData = await listCourses()
       
-      if (error) {
-        console.error('Errore caricamento corsi:', error)
-        return
-      }
-      
-      setCorsi(corsiData || [])
+      // Ordinamento
+      const sorted = (corsiData || []).sort((a, b) => a.nome.localeCompare(b.nome))
+      setCorsi(sorted)
     } catch (err) {
       console.error('Errore caricamento corsi:', err)
     }
@@ -192,15 +188,7 @@ const loadPagamenti = async () => {
   try {
     setLoadingPagamenti(true);
 
-    const { data: pagamentiRows, error: pagamentiError } = await supabase
-      .from("pagamenti")
-      .select("*")
-      .eq("allievo_id", profile.id);
-
-    if (pagamentiError) {
-      console.error("Errore fetch pagamenti:", pagamentiError);
-      return;
-    }
+    const pagamentiRows = await listPayments({ allievoId: profile.id });
 
     const pagamentiNormalizzati = (pagamentiRows || []).map((p) => ({
       ...p,
@@ -208,6 +196,8 @@ const loadPagamenti = async () => {
     }));
 
     setPagamenti(pagamentiNormalizzati);
+  } catch (err) {
+    console.error("Errore fetch pagamenti:", err);
   } finally {
     setLoadingPagamenti(false);
   }
@@ -231,36 +221,17 @@ const loadPagamenti = async () => {
           return
         }
 
-        const { data: profileData, error } = await supabase
-          .from('utenti')
-          .select(`
-            id, auth_id, ruolo, email,
-            nome, cognome, data_iscrizione, data_nascita, cellulare,
-            nome_genitore1, cellulare_genitore1,
-            nome_genitore2, cellulare_genitore2,
-            taglia_tshirt, taglia_pantalone, numero_scarpe,
-            corso_1, corso_2, corso_3, corso_4, corso_5,
-            prezzo_corso1, prezzo_corso2, prezzo_corso3, prezzo_corso4, prezzo_corso5
-          `)
-          .eq('auth_id', user.id)
-          .single()
+        const profileData = await getUser(user.id)
 
-        if (error) {
-          console.error('[supabase] profilo fetch error:', error?.message || error?.code || 'unknown')
-          if (error.code === 'PGRST301' || error.code === 'PGRST116' ||
-              error.message?.includes('403') || error.message?.includes('406')) {
-            if (!isMounted) return
-            setAuthError(true)
-            setMessage({ type: 'error', text: 'Non autorizzato / dati non disponibili' })
-          } else {
-            if (!isMounted) return
-            setMessage({ type: 'error', text: 'Errore nel caricamento del profilo' })
+        if (!profileData) {
+          if (isMounted) {
+             setAuthError(true)
+             setMessage({ type: 'error', text: 'Profilo non trovato' })
           }
           return
         }
 
-        if (!isMounted) return
-        if (profileData) {
+        if (isMounted) {
           setProfile(profileData)
           setFormData({
             nome: profileData.nome || '',
@@ -274,6 +245,7 @@ const loadPagamenti = async () => {
             taglia_tshirt: profileData.taglia_tshirt || '',
             taglia_pantalone: profileData.taglia_pantalone || '',
             numero_scarpe: profileData.numero_scarpe || '',
+            // Campi admin
             corso_1: profileData.corso_1 || '',
             corso_2: profileData.corso_2 || '',
             corso_3: profileData.corso_3 || '',
@@ -294,7 +266,8 @@ const loadPagamenti = async () => {
       }
     }
 
-    loadUserData()
+    if (user?.id) loadUserData()
+
     return () => { isMounted = false }
   }, [user?.id])
 
@@ -410,25 +383,12 @@ useEffect(() => {
         })
       }
       
-      const { error } = await supabase
-        .from('utenti')
-        .update(updateData)
-        .eq('auth_id', user.id)
-      
-      if (error) {
-        console.error('[supabase] update error:', error)
-        setMessage({ type: 'error', text: 'Errore nel salvataggio del profilo' })
-        return
-      }
+      await updateUser(user.id, updateData)
       
       setMessage({ type: 'success', text: 'Profilo aggiornato con successo!' })
       
       // Ricarica i dati aggiornati
-      const { data: updatedProfile } = await supabase
-        .from('utenti')
-        .select('*')
-        .eq('auth_id', user.id)
-        .single()
+      const updatedProfile = await getUser(user.id)
       
       if (updatedProfile) {
         setProfile(updatedProfile)
